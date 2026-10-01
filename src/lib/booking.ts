@@ -7,11 +7,44 @@ export function getBookingCost(service: ServiceType, singers: number): number {
     return 3;
   }
 
-  if (singers <= 1) return 10;
-  if (singers === 2) return 17;
-  if (singers === 3) return 23;
+  if (singers <= 1) {
+    return 10;
+  }
+
+  if (singers === 2) {
+    return 17;
+  }
+
+  if (singers === 3) {
+    return 23;
+  }
 
   return 23 + (singers - 3) * 6;
+}
+
+export function getBasePrice(service: ServiceType): number {
+  if (service === "short") {
+    return 2500;
+  }
+
+  return 6500;
+}
+
+export function getEstimatedPrice(
+  service: ServiceType,
+  isExpress: boolean,
+): number {
+  const base = getBasePrice(service);
+
+  if (isExpress) {
+    return Math.round(base * 1.5);
+  }
+
+  return base;
+}
+
+export function getServiceLabel(service: ServiceType): string {
+  return service === "full" ? "フルコーラス" : "short";
 }
 
 export function canAcceptBooking(
@@ -19,9 +52,7 @@ export function canAcceptBooking(
   used: number,
   required: number,
 ): boolean {
-  const remaining = capacity - used;
-
-  return remaining >= required;
+  return capacity - used >= required;
 }
 
 export function getAvailabilityStatus(
@@ -35,7 +66,6 @@ export function getAvailabilityStatus(
     return "full";
   }
 
-  // 今回の依頼は入るけど、入れたら残りが少ない
   if (remaining - required < 5) {
     return "few";
   }

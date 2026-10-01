@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Booking {
+  id           Int      @id @default(autoincrement())
+  name         String
+  contact      String
+  songTitle    String
+
+  serviceType  String
+  singerCount  Int
+  chorusCount  Int      @default(0)
+
+  requestNote  String?
+
+  materialLinks String?
+
+  paymentMethod String?
+
+  // 内部的な作業量
+  costPoint    Int
+
+  deliveryDate String
+
+  // pending_review
+  // reserved
+  // mixing
+  // first_draft
+  // revision
+  // delivered
+  // cancelled
+  status       String   @default("pending_review")
+
+  // 管理側で最終決定する内容
+  planLabel    String?
+  quotedPrice  Int?
+  adminNote    String?
+
+  // 当日納品扱い
+  isExpress    Boolean  @default(false)
+
+  createdAt    DateTime @default(now())
+
+  allocations WorkAllocation[]
+}
+
+model ScheduleDay {
+  id        Int      @id @default(autoincrement())
+  date      String   @unique
+  capacity  Int
+  bookable  Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  allocations WorkAllocation[]
+}
+
+model WorkAllocation {
+  id        Int @id @default(autoincrement())
+
+  bookingId Int
+  date      String
+  points    Int
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  scheduleDay ScheduleDay @relation(fields: [date], references: [date], onDelete: Restrict)
+
+  @@unique([bookingId, date])
+  @@index([date])
+}
+
+model CalendarEvent {
+  id        Int      @id @default(autoincrement())
+  date      String
+  title     String
+  createdAt DateTime @default(now())
+
+  @@index([date])
+}
+
+model PortfolioItem {
+  id           Int      @id @default(autoincrement())
+  title        String
+  creatorName  String?
+  url          String
+  thumbnailUrl String?
+  category     String?
+  published    Boolean  @default(true)
+  sortOrder    Int      @default(0)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([published, sortOrder])
+}
