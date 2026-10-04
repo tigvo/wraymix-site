@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+Disallow: /admin/
+Disallow: /api/
+Disallow: /project/
+Disallow: /login
+
+Sitemap: https://wraymix.jp/sitemap.xml

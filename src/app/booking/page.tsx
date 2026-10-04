@@ -613,17 +613,23 @@ export default function BookingPage() {
 
             {selectedDay?.isExpress && (
               <div className="mt-6 rounded-xl border-2 border-black bg-[#f5d48d] p-4">
-                <p className="font-black">⚡ お急ぎ納品</p>
+                <p className="font-black">⚡ この日程はお急ぎ対応です</p>
 
                 <p className="mt-1 text-sm leading-6">
-                  2日後までの初稿お渡しは、お急ぎ対応として通常料金の1.5倍となります。
+                  2日後までの初稿お渡しは、通常料金の1.5倍となります。
                 </p>
 
-                <p className="mt-2 font-black">
-                  {selectedDay.estimatedPrice != null
-                    ? `基本料金目安 ${formatYen(selectedDay.estimatedPrice)}〜`
-                    : "料金は内容確認後にご案内します"}
-                </p>
+                {basePrice !== null && selectedDay.estimatedPrice !== null && (
+                  <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    <span className="text-sm font-bold text-black/55">
+                      通常 {formatYen(basePrice)}〜
+                    </span>
+
+                    <span className="text-lg font-black">
+                      → お急ぎ {formatYen(selectedDay.estimatedPrice)}〜
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </section>

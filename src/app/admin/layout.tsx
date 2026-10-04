@@ -3,6 +3,8 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import AdminHeader from "./AdminHeader";
 
+import type { Metadata } from "next";
+
 export default async function AdminLayout({
   children,
 }: Readonly<{
@@ -25,3 +27,10 @@ export default async function AdminLayout({
     </>
   );
 }
+
+export const metadata: Metadata = {
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
