@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 
 import { redirect } from "next/navigation";
+import AdminHeader from "./AdminHeader";
 
 export default async function AdminLayout({
   children,
@@ -17,5 +18,10 @@ export default async function AdminLayout({
     redirect("/login");
   }
 
-  return children;
+  return (
+    <>
+      <AdminHeader />
+      {children}
+    </>
+  );
 }
