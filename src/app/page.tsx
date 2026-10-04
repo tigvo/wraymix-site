@@ -347,9 +347,9 @@ export default function Home() {
                 />
               </div>
 
-              <div className="absolute -bottom-4 -left-5 rounded-full border-2 border-black bg-[#f5d48d] px-3 py-1.5 text-[10px] font-black">
+              {/* <div className="absolute -bottom-4 -left-5 rounded-full border-2 border-black bg-[#f5d48d] px-3 py-1.5 text-[10px] font-black">
                 VOCAL MIX
-              </div>
+              </div> */}
             </div>
           </div>
         </section>
