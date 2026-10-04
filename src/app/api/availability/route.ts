@@ -99,16 +99,6 @@ export async function GET(request: Request) {
           ? Math.round(basePrice * 1.5)
           : basePrice;
 
-        // 管理側でOFF、またはcapacity 0の日
-        if (deliveryDay.capacity <= 0) {
-          return {
-            date: deliveryDay.date,
-            status: "full" as const,
-            isExpress,
-            estimatedPrice,
-          };
-        }
-
         const candidateStart = shiftDate(deliveryDay.date, -7);
 
         const startDate = candidateStart < today ? today : candidateStart;
