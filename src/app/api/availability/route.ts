@@ -90,9 +90,8 @@ export async function GET(request: Request) {
     }));
 
     const availability = scheduleDays
-      // 当日の予約だけ不可。
-      // OFF / 0pt の日も × FULL として返す
-      .filter((day) => day.date >= tomorrow)
+      // 当日と、受付枠を開けていない日（0pt）は候補に出さない
+      .filter((day) => day.date >= tomorrow && day.capacity > 0)
       .map((deliveryDay) => {
         const isExpress = deliveryDay.date <= rushDeadline;
 
