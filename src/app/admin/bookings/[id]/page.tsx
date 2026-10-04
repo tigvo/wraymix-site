@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import { notFound } from "next/navigation";
 
 import { prisma } from "@/lib/prisma";
@@ -136,32 +134,6 @@ export default async function BookingDetailPage({
   return (
     <main className="min-h-screen bg-[#f7f1df] px-4 py-8 text-[#202020] md:px-8">
       <div className="mx-auto max-w-4xl">
-        {/* =========================
-            HEADER
-        ========================= */}
-
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link href="/admin/bookings" className="text-sm font-black">
-            ← BOOKINGS
-          </Link>
-
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href="/admin/schedule"
-              className="rounded-full border-2 border-black bg-white px-4 py-2 text-xs font-black"
-            >
-              SCHEDULE
-            </Link>
-
-            <Link
-              href="/admin/portfolio"
-              className="rounded-full border-2 border-black bg-white px-4 py-2 text-xs font-black"
-            >
-              PORTFOLIO
-            </Link>
-          </div>
-        </div>
-
         <div className="mt-7 flex flex-wrap items-start justify-between gap-5">
           <div className="min-w-0">
             <p className="text-xs font-black tracking-[0.2em]">

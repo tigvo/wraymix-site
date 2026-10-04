@@ -60,22 +60,6 @@ export default async function AdminBookingsPage() {
 
             <p className="mt-2 text-sm text-black/55">ご依頼一覧</p>
           </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href="/admin/schedule"
-              className="rounded-full border-2 border-black bg-white px-4 py-2 text-xs font-black"
-            >
-              SCHEDULE
-            </Link>
-
-            <Link
-              href="/admin/portfolio"
-              className="rounded-full border-2 border-black bg-white px-4 py-2 text-xs font-black"
-            >
-              PORTFOLIO
-            </Link>
-          </div>
         </header>
 
         <div className="mt-8 space-y-3">

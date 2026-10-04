@@ -1,7 +1,5 @@
 "use client";
 
-import Link from "next/link";
-
 import { FormEvent, useEffect, useState } from "react";
 
 type PortfolioItem = {
@@ -301,22 +299,6 @@ export default function PortfolioAdminPage() {
             <p className="mt-3 text-sm text-black/60">
               TOPページに表示する作品を管理します。
             </p>
-          </div>
-
-          <div className="flex gap-2">
-            <Link
-              href="/admin/schedule"
-              className="rounded-full border-2 border-black bg-white px-4 py-2 text-sm font-black"
-            >
-              SCHEDULE
-            </Link>
-
-            <Link
-              href="/"
-              className="rounded-full border-2 border-black bg-black px-4 py-2 text-sm font-black text-white"
-            >
-              VIEW SITE
-            </Link>
           </div>
         </header>
 
