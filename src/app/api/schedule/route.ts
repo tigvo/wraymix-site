@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 
 import { requireAdmin } from "@/lib/adminAuth";
 
+import { bookingConsumesCapacity } from "@/lib/booking";
+
 export async function GET() {
   try {
     const authError = await requireAdmin();
@@ -11,6 +13,7 @@ export async function GET() {
     if (authError) {
       return authError;
     }
+
     const days = await prisma.scheduleDay.findMany({
       orderBy: {
         date: "asc",
@@ -39,8 +42,9 @@ export async function GET() {
     });
 
     const result = days.map((day) => {
-      const activeAllocations = day.allocations.filter(
-        (allocation) => allocation.booking.status !== "cancelled",
+      // capacityを実際に消費している案件だけ
+      const activeAllocations = day.allocations.filter((allocation) =>
+        bookingConsumesCapacity(allocation.booking.status),
       );
 
       return {
@@ -49,8 +53,6 @@ export async function GET() {
         date: day.date,
 
         capacity: day.capacity,
-
-        bookable: day.bookable,
 
         used: activeAllocations.reduce(
           (total, allocation) => total + allocation.points,
@@ -93,6 +95,7 @@ export async function PUT(request: Request) {
     if (authError) {
       return authError;
     }
+
     const body = await request.json();
 
     const dates = Array.isArray(body.dates)
@@ -112,9 +115,7 @@ export async function PUT(request: Request) {
 
     const hasCapacity = Object.prototype.hasOwnProperty.call(body, "capacity");
 
-    const hasBookable = typeof body.bookable === "boolean";
-
-    if (!hasCapacity && !hasBookable) {
+    if (!hasCapacity) {
       return NextResponse.json(
         {
           error: "変更内容がありません。",
@@ -125,12 +126,9 @@ export async function PUT(request: Request) {
       );
     }
 
-    const capacity = hasCapacity ? Number(body.capacity) : null;
+    const capacity = Number(body.capacity);
 
-    if (
-      hasCapacity &&
-      (!Number.isInteger(capacity) || capacity === null || capacity < 0)
-    ) {
+    if (!Number.isInteger(capacity) || capacity < 0) {
       return NextResponse.json(
         {
           error: "キャパが不正です。",
@@ -143,52 +141,50 @@ export async function PUT(request: Request) {
 
     const uniqueDates = [...new Set<string>(dates)];
 
-    if (capacity !== null) {
-      const existingDays = await prisma.scheduleDay.findMany({
-        where: {
-          date: {
-            in: uniqueDates,
-          },
+    const existingDays = await prisma.scheduleDay.findMany({
+      where: {
+        date: {
+          in: uniqueDates,
         },
+      },
 
-        include: {
-          allocations: {
-            include: {
-              booking: {
-                select: {
-                  status: true,
-                },
+      include: {
+        allocations: {
+          include: {
+            booking: {
+              select: {
+                status: true,
               },
             },
           },
         },
-      });
+      },
+    });
 
-      const conflicts = existingDays
-        .map((day) => ({
-          date: day.date,
+    const conflicts = existingDays
+      .map((day) => ({
+        date: day.date,
 
-          used: day.allocations.reduce((total, allocation) => {
-            if (allocation.booking.status === "cancelled") {
-              return total;
-            }
+        used: day.allocations.reduce((total, allocation) => {
+          if (!bookingConsumesCapacity(allocation.booking.status)) {
+            return total;
+          }
 
-            return total + allocation.points;
-          }, 0),
-        }))
-        .filter((day) => day.used > capacity);
+          return total + allocation.points;
+        }, 0),
+      }))
+      .filter((day) => day.used > capacity);
 
-      if (conflicts.length > 0) {
-        return NextResponse.json(
-          {
-            error: "既存の作業予定より小さいキャパにはできません。",
-            conflicts,
-          },
-          {
-            status: 409,
-          },
-        );
-      }
+    if (conflicts.length > 0) {
+      return NextResponse.json(
+        {
+          error: "既存の作業予定より小さいキャパにはできません。",
+          conflicts,
+        },
+        {
+          status: 409,
+        },
+      );
     }
 
     await prisma.$transaction(
@@ -199,25 +195,19 @@ export async function PUT(request: Request) {
           },
 
           update: {
-            ...(capacity !== null
-              ? {
-                  capacity,
-                }
-              : {}),
+            capacity,
 
-            ...(hasBookable
-              ? {
-                  bookable: body.bookable,
-                }
-              : {}),
+            // DBにはまだカラムが残っているので自動同期だけしておく
+            bookable: capacity > 0,
           },
 
           create: {
             date,
 
-            capacity: capacity ?? 0,
+            capacity,
 
-            bookable: hasBookable ? body.bookable : true,
+            // capacityだけを真実として扱う
+            bookable: capacity > 0,
           },
         }),
       ),

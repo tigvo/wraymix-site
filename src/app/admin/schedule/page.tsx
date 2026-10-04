@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useMemo, useState } from "react";
 
 type BookingAllocation = {
@@ -47,7 +49,6 @@ type ScheduleDay = {
   id: number;
   date: string;
   capacity: number;
-  bookable: boolean;
   used: number;
 
   allocations: WorkAllocation[];
@@ -67,10 +68,6 @@ const statusOptions = [
   {
     value: "reserved",
     label: "受付確定",
-  },
-  {
-    value: "mixing",
-    label: "MIX中",
   },
   {
     value: "first_draft",
@@ -286,6 +283,18 @@ function BookingEditor({
       >
         {booking.songTitle}
       </h3>
+
+      <Link
+        href={`/admin/bookings/${booking.id}`}
+        className="wray-calendar-primary"
+        style={{
+          display: "inline-block",
+          marginTop: 12,
+          textDecoration: "none",
+        }}
+      >
+        案件詳細を開く →
+      </Link>
 
       <div
         style={{
@@ -1085,29 +1094,7 @@ export default function ScheduleAdminPage() {
                     gap: 8,
                     marginTop: 12,
                   }}
-                >
-                  <button
-                    className="wray-calendar-preset"
-                    onClick={() =>
-                      updateSchedule({
-                        bookable: true,
-                      })
-                    }
-                  >
-                    納品受付 ON
-                  </button>
-
-                  <button
-                    className="wray-calendar-preset"
-                    onClick={() =>
-                      updateSchedule({
-                        bookable: false,
-                      })
-                    }
-                  >
-                    納品受付 OFF
-                  </button>
-                </div>
+                ></div>
               </div>
 
               {selectedDates.length === 1 && (

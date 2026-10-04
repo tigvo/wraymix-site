@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 
 import { verifyClientBookingToken } from "@/lib/clientBookingAccess";
 
+import { getServiceLabel } from "@/lib/booking";
+
 export const dynamic = "force-dynamic";
 
 export const metadata = {
@@ -35,10 +37,6 @@ const progressSteps = [
     label: "受付確定",
   },
   {
-    status: "mixing",
-    label: "MIX制作",
-  },
-  {
     status: "first_draft",
     label: "初稿",
   },
@@ -52,16 +50,34 @@ const progressSteps = [
   },
 ];
 
-function getStatusLabel(status: string) {
+function normalizeStatus(status: string) {
   switch (status) {
+    // 旧ステータス互換
+    case "pending":
+    case "awaiting_approval":
+      return "pending_review";
+
+    case "confirmed":
+    case "mixing":
+      return "reserved";
+
+    case "completed":
+      return "delivered";
+
+    default:
+      return status;
+  }
+}
+
+function getStatusLabel(status: string) {
+  const normalizedStatus = normalizeStatus(status);
+
+  switch (normalizedStatus) {
     case "pending_review":
       return "内容確認中";
 
     case "reserved":
       return "受付確定";
-
-    case "mixing":
-      return "MIX制作中";
 
     case "first_draft":
       return "初稿提出済み";
@@ -80,16 +96,30 @@ function getStatusLabel(status: string) {
   }
 }
 
-function getServiceLabel(serviceType: string) {
-  switch (serviceType) {
-    case "full":
-      return "フルコーラス";
+function getStatusDescription(status: string) {
+  const normalizedStatus = normalizeStatus(status);
 
-    case "short":
-      return "short";
+  switch (normalizedStatus) {
+    case "pending_review":
+      return "ご依頼内容を確認しています。内容・料金を確認後、ご連絡します。";
+
+    case "reserved":
+      return "受付が完了しました。初稿のお渡しまでお待ちください！";
+
+    case "first_draft":
+      return "初稿をお送りしています。内容をご確認ください。";
+
+    case "revision":
+      return "いただいた内容をもとに修正対応を進めています。";
+
+    case "delivered":
+      return "最終音源を納品済みです。ご依頼ありがとうございました！";
+
+    case "cancelled":
+      return "このご依頼はキャンセルされています。";
 
     default:
-      return serviceType;
+      return "";
   }
 }
 
@@ -141,8 +171,10 @@ export default async function ProjectPage({
       .map((value) => value.trim())
       .filter(Boolean) ?? [];
 
+  const normalizedStatus = normalizeStatus(booking.status);
+
   const currentStep = progressSteps.findIndex(
-    (step) => step.status === booking.status,
+    (step) => step.status === normalizedStatus,
   );
 
   return (
@@ -162,7 +194,9 @@ export default async function ProjectPage({
           <p className="mt-3 text-sm text-black/50">BOOKING #{booking.id}</p>
         </div>
 
-        {/* STATUS */}
+        {/* =========================
+            STATUS
+        ========================= */}
 
         <section className="mt-8 rounded-3xl border-2 border-black bg-[#bfe3d1] p-6 shadow-[6px_6px_0_#202020]">
           <p className="text-xs font-black tracking-[0.18em]">CURRENT STATUS</p>
@@ -172,19 +206,25 @@ export default async function ProjectPage({
               {getStatusLabel(booking.status)}
             </h2>
 
-            <span className="rounded-full border-2 border-black bg-white px-4 py-2 text-xs font-black">
-              初稿予定 {formatDate(booking.deliveryDate)}
-            </span>
+            {normalizedStatus !== "cancelled" && (
+              <span className="rounded-full border-2 border-black bg-white px-4 py-2 text-xs font-black">
+                初稿予定 {formatDate(booking.deliveryDate)}
+              </span>
+            )}
           </div>
 
-          {booking.status === "cancelled" ? (
+          <p className="mt-4 text-sm leading-6 text-black/60">
+            {getStatusDescription(booking.status)}
+          </p>
+
+          {normalizedStatus === "cancelled" ? (
             <div className="mt-6 rounded-2xl border-2 border-black bg-[#f6cbd3] p-4 font-bold">
               このご依頼はキャンセルされています。
             </div>
           ) : (
-            <div className="mt-7 grid grid-cols-3 gap-2 md:grid-cols-6">
+            <div className="mt-7 grid grid-cols-3 gap-2 md:grid-cols-5">
               {progressSteps.map((step, index) => {
-                const completed = index <= currentStep;
+                const completed = currentStep >= 0 && index <= currentStep;
 
                 return (
                   <div key={step.status}>
@@ -208,7 +248,9 @@ export default async function ProjectPage({
           )}
         </section>
 
-        {/* DETAILS */}
+        {/* =========================
+            DETAILS
+        ========================= */}
 
         <section className="mt-6 rounded-3xl border-2 border-black bg-white p-6 shadow-[5px_5px_0_#202020]">
           <p className="text-xs font-black tracking-[0.18em]">DETAILS</p>
@@ -276,7 +318,9 @@ export default async function ProjectPage({
           )}
         </section>
 
-        {/* MATERIALS */}
+        {/* =========================
+            MATERIALS
+        ========================= */}
 
         <section className="mt-6 rounded-3xl border-2 border-black bg-[#dcd4f5] p-6 shadow-[5px_5px_0_#202020]">
           <p className="text-xs font-black tracking-[0.18em]">MATERIALS</p>
@@ -312,6 +356,10 @@ export default async function ProjectPage({
             </div>
           )}
         </section>
+
+        {/* =========================
+            NOTICE
+        ========================= */}
 
         <div className="mt-8 rounded-2xl border-2 border-black/15 p-5 text-xs leading-5 text-black/50">
           このページはご依頼専用ページです。

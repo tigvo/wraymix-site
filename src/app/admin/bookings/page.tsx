@@ -1,26 +1,30 @@
 import Link from "next/link";
 
 import { prisma } from "@/lib/prisma";
+import { getServiceLabel } from "@/lib/booking";
 
 function statusLabel(status: string) {
   switch (status) {
+    // 旧データ互換
     case "pending":
-      return "確認待ち";
+    case "pending_review":
+    case "awaiting_approval":
+      return "内容確認中";
 
     case "confirmed":
+    case "reserved":
+    case "mixing":
       return "受付確定";
 
-    case "mixing":
-      return "MIX中";
-
     case "first_draft":
-      return "初稿提出";
+      return "初稿提出済み";
 
     case "revision":
-      return "修正中";
+      return "修正対応中";
 
     case "completed":
-      return "納品済み";
+    case "delivered":
+      return "納品完了";
 
     case "cancelled":
       return "キャンセル";
@@ -28,6 +32,14 @@ function statusLabel(status: string) {
     default:
       return status;
   }
+}
+
+function formatDate(dateString: string) {
+  const date = new Date(`${dateString}T00:00:00`);
+
+  const weekday = ["日", "月", "火", "水", "木", "金", "土"][date.getDay()];
+
+  return `${date.getMonth() + 1}月${date.getDate()}日 (${weekday})`;
 }
 
 export default async function AdminBookingsPage() {
@@ -92,14 +104,14 @@ export default async function AdminBookingsPage() {
                   </span>
 
                   <p className="mt-2 text-sm font-black">
-                    初稿 {booking.deliveryDate}
+                    初稿 {formatDate(booking.deliveryDate)}
                   </p>
                 </div>
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2 text-xs">
                 <span className="rounded-full bg-[#dcd4f5] px-3 py-1 font-bold">
-                  {booking.planLabel || booking.serviceType}
+                  {booking.planLabel || getServiceLabel(booking.serviceType)}
                 </span>
 
                 <span className="rounded-full bg-[#f5d48d] px-3 py-1 font-bold">

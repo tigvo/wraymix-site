@@ -1,13 +1,38 @@
-export type ServiceType = "short" | "full";
+export type ServiceType = "full" | "one_chorus" | "short";
 
-export type AvailabilityStatus = "available" | "few" | "full";
+export function getServiceLabel(serviceType: string) {
+  switch (serviceType) {
+    case "full":
+      return "フルコーラス";
 
-export function getBookingCost(service: ServiceType, singers: number): number {
-  if (service === "short") {
-    return 3;
+    case "one_chorus":
+      return "ワンコーラス";
+
+    case "short":
+      return "short";
+
+    default:
+      return serviceType;
   }
+}
 
-  if (singers <= 1) {
+export function getBasePrice(serviceType: ServiceType) {
+  switch (serviceType) {
+    case "full":
+      return 6500;
+
+    case "one_chorus":
+      return 4500;
+
+    case "short":
+      return 2500;
+  }
+}
+
+function getFullCost(singerCount: number) {
+  const singers = Math.max(1, Math.floor(singerCount));
+
+  if (singers === 1) {
     return 10;
   }
 
@@ -22,66 +47,18 @@ export function getBookingCost(service: ServiceType, singers: number): number {
   return 23 + (singers - 3) * 6;
 }
 
-export function getBasePrice(service: ServiceType): number {
-  if (service === "short") {
-    return 2500;
+export function getBookingCost(serviceType: ServiceType, singerCount: number) {
+  if (serviceType === "short") {
+    return 3;
   }
 
-  return 6500;
-}
-
-export function getEstimatedPrice(
-  service: ServiceType,
-  isExpress: boolean,
-): number {
-  const base = getBasePrice(service);
-
-  if (isExpress) {
-    return Math.round(base * 1.5);
+  if (serviceType === "one_chorus") {
+    return Math.ceil(getFullCost(singerCount) * 0.6);
   }
 
-  return base;
+  return getFullCost(singerCount);
 }
 
-export function getServiceLabel(service: ServiceType): string {
-  return service === "full" ? "フルコーラス" : "short";
-}
-
-export function canAcceptBooking(
-  capacity: number,
-  used: number,
-  required: number,
-): boolean {
-  return capacity - used >= required;
-}
-
-export function getAvailabilityStatus(
-  capacity: number,
-  used: number,
-  required: number,
-): AvailabilityStatus {
-  const remaining = capacity - used;
-
-  if (remaining < required) {
-    return "full";
-  }
-
-  if (remaining - required < 5) {
-    return "few";
-  }
-
-  return "available";
-}
-
-export function getAvailabilityLabel(status: AvailabilityStatus): string {
-  switch (status) {
-    case "available":
-      return "○ 予約可能";
-
-    case "few":
-      return "△ 残りわずか";
-
-    case "full":
-      return "× 受付終了";
-  }
+export function bookingConsumesCapacity(status: string) {
+  return status === "pending_review" || status === "reserved";
 }

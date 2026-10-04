@@ -4,7 +4,13 @@ import { prisma } from "@/lib/prisma";
 
 import { buildAllocationPlan, shiftDate } from "@/lib/allocation";
 
-import { getBasePrice, getBookingCost, type ServiceType } from "@/lib/booking";
+import {
+  bookingConsumesCapacity,
+  getBasePrice,
+  getBookingCost,
+  getServiceLabel,
+  type ServiceType,
+} from "@/lib/booking";
 
 import { getTodayInJapan, getTomorrowInJapan } from "@/lib/japanDate";
 
@@ -15,7 +21,6 @@ import { createClientBookingPath } from "@/lib/clientBookingAccess";
 const allowedStatuses = [
   "pending_review",
   "reserved",
-  "mixing",
   "first_draft",
   "revision",
   "delivered",
@@ -66,7 +71,7 @@ async function createAllocationPlan(
 
   const deliveryDay = scheduleDays.find((day) => day.date === deliveryDate);
 
-  if (!deliveryDay || !deliveryDay.bookable || deliveryDay.capacity <= 0) {
+  if (!deliveryDay || deliveryDay.capacity <= 0) {
     throw new Error("DATE_NOT_AVAILABLE");
   }
 
@@ -75,7 +80,7 @@ async function createAllocationPlan(
     capacity: day.capacity,
 
     used: day.allocations.reduce((total, allocation) => {
-      if (allocation.booking.status === "cancelled") {
+      if (!bookingConsumesCapacity(allocation.booking.status)) {
         return total;
       }
 
@@ -162,12 +167,15 @@ export async function POST(request: Request) {
 
     const materialLinks = materialLinksArray.join("\n");
 
+    const validServices = ["full", "one_chorus", "short"] as const;
+
     if (
       !name ||
       !contact ||
       !songTitle ||
       !deliveryDate ||
-      (service !== "full" && service !== "short")
+      typeof service !== "string" ||
+      !validServices.includes(service as (typeof validServices)[number])
     ) {
       return NextResponse.json(
         {
@@ -193,11 +201,11 @@ export async function POST(request: Request) {
     const isExpress =
       deliveryDate === tomorrow || deliveryDate === dayAfterTomorrow;
 
-    let provisionalPrice = getBasePrice(service as ServiceType);
+    const basePrice = getBasePrice(service as ServiceType);
 
-    if (isExpress) {
-      provisionalPrice = Math.round(provisionalPrice * 1.5);
-    }
+    const provisionalPrice = isExpress
+      ? Math.round(basePrice * 1.5)
+      : basePrice;
 
     const booking = await prisma.$transaction(async (tx) => {
       const allocationPlan = await createAllocationPlan(
@@ -227,7 +235,7 @@ export async function POST(request: Request) {
 
           status: "pending_review",
 
-          planLabel: service === "full" ? "フルコーラス" : "short",
+          planLabel: getServiceLabel(service),
 
           quotedPrice: provisionalPrice,
 

@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 model Booking {
@@ -30,7 +30,6 @@ model Booking {
 
   // pending_review
   // reserved
-  // mixing
   // first_draft
   // revision
   // delivered
@@ -42,7 +41,7 @@ model Booking {
   quotedPrice  Int?
   adminNote    String?
 
-  // 当日納品扱い
+  // お急ぎ対応
   isExpress    Boolean  @default(false)
 
   createdAt    DateTime @default(now())

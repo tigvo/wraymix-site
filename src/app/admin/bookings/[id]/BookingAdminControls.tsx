@@ -32,10 +32,6 @@ const statuses = [
     label: "受付確定",
   },
   {
-    value: "mixing",
-    label: "MIX制作中",
-  },
-  {
     value: "first_draft",
     label: "初稿提出済み",
   },

@@ -30,8 +30,19 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files
 .env*
+.env.local
+
+# local database
+*.db
+*.db-journal
+
+# old sqlite migrations
+/prisma/migrations_sqlite_backup/
+
+# generated prisma client
+/generated/prisma
 
 # vercel
 .vercel
@@ -39,5 +50,3 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-/generated/prisma

@@ -13,7 +13,7 @@ type AvailabilityDay = {
 
   isExpress: boolean;
 
-  estimatedPrice: number;
+  estimatedPrice: number | null;
 };
 
 // type PaymentMethod = "bank_transfer" | "credit_card";
@@ -258,7 +258,7 @@ export default function BookingPage() {
             <div className="mt-6 rounded-2xl bg-white/70 p-5">
               <p className="text-sm font-bold">CURRENT STATUS</p>
 
-              <p className="mt-1 text-xl font-black">内容確認待ち</p>
+              <p className="mt-1 text-xl font-black">内容確認中</p>
 
               <p className="mt-3 text-sm leading-6">
                 内容・尺・コーラス等を確認後、
@@ -275,7 +275,8 @@ export default function BookingPage() {
                 <p className="mt-2 font-black">ご依頼専用ページ</p>
 
                 <p className="mt-2 text-sm leading-6 text-black/60">
-                  進行状況・料金・初稿予定日はこちらからいつでも確認できます。
+                  進行状況・料金・初稿予定日は、
+                  このページからいつでも確認できます。
                 </p>
 
                 <Link
@@ -290,13 +291,11 @@ export default function BookingPage() {
             <div className="mt-6 space-y-2">
               <p>
                 <strong>曲名：</strong>
-
                 {songTitle}
               </p>
 
               <p>
                 <strong>初稿お渡し希望日：</strong>
-
                 {selectedDate ? formatLongDate(selectedDate) : ""}
               </p>
             </div>
@@ -351,23 +350,33 @@ export default function BookingPage() {
 
           <h2 className="mt-1 text-2xl font-black">ご依頼内容</h2>
 
-          <select
-            value={service}
-            onChange={(event) => {
-              setService(event.target.value as ServiceType);
+          <div className="mt-6">
+            <p className="font-bold">ご希望プラン</p>
 
-              setSelectedDate(null);
+            <select
+              value={service}
+              onChange={(event) => {
+                setService(event.target.value as ServiceType);
 
-              setIsConfirming(false);
-            }}
-            className="mt-6 w-full rounded-xl border-2 border-black bg-white p-3"
-          >
-            <option value="full">フルコーラス</option>
+                setSelectedDate(null);
 
-            <option value="short">short</option>
-          </select>
+                setIsConfirming(false);
 
-          {service === "full" && (
+                setLoadedAvailabilityKey(null);
+              }}
+              className="mt-2 w-full rounded-xl border-2 border-black bg-white p-3"
+            >
+              <option value="full">フルコーラス</option>
+
+              <option value="one_chorus">ワンコーラス</option>
+
+              <option value="short">short</option>
+
+              <option value="other">その他 / 不明</option>
+            </select>
+          </div>
+
+          {service !== "short" && (
             <div className="mt-6">
               <p className="font-bold">歌唱人数</p>
 
@@ -384,6 +393,8 @@ export default function BookingPage() {
                       setSelectedDate(null);
 
                       setIsConfirming(false);
+
+                      setLoadedAvailabilityKey(null);
                     }}
                     className={`rounded-xl border-2 border-black px-5 py-2 font-black ${
                       singerMode === "preset" && presetSingers === number
@@ -403,6 +414,8 @@ export default function BookingPage() {
                     setSelectedDate(null);
 
                     setIsConfirming(false);
+
+                    setLoadedAvailabilityKey(null);
                   }}
                   className={`rounded-xl border-2 border-black px-5 py-2 font-black ${
                     singerMode === "custom" ? "bg-black text-white" : "bg-white"
@@ -426,6 +439,8 @@ export default function BookingPage() {
                       setSelectedDate(null);
 
                       setIsConfirming(false);
+
+                      setLoadedAvailabilityKey(null);
                     }}
                     className="w-24 rounded-xl border-2 border-black bg-white p-3 text-center font-black"
                   />
@@ -437,12 +452,17 @@ export default function BookingPage() {
           )}
 
           <div className="mt-6 rounded-xl bg-white/60 p-4">
-            <p className="text-sm">基本料金目安</p>
+            <p className="text-sm">基本料金の目安</p>
 
-            <p className="text-2xl font-black">{formatYen(basePrice)}〜</p>
+            <p className="text-2xl font-black">
+              {basePrice != null
+                ? `${formatYen(basePrice)}〜`
+                : "内容確認後にご案内"}
+            </p>
 
-            <p className="mt-2 text-xs leading-5">
-              最終料金は素材・尺・コーラス等を確認後に決定します。
+            <p className="mt-2 text-xs leading-5 text-black/55">
+              コーラス・ハモリなどの追加料金は含まれていません。
+              提出内容を確認したうえで、正式な料金をご案内します。
             </p>
           </div>
         </section>
@@ -462,8 +482,6 @@ export default function BookingPage() {
           </p>
 
           <div className="mx-auto mt-6 max-w-xl">
-            {/* 月選択 */}
-
             <div className="flex items-center justify-between">
               <button
                 type="button"
@@ -486,25 +504,15 @@ export default function BookingPage() {
               </button>
             </div>
 
-            {/* 曜日 */}
-
             <div className="mt-5 grid grid-cols-7 gap-1.5 text-center text-[10px] font-black md:text-xs">
               <div className="text-[#c84f6a]">SUN</div>
-
               <div>MON</div>
-
               <div>TUE</div>
-
               <div>WED</div>
-
               <div>THU</div>
-
               <div>FRI</div>
-
               <div className="text-[#5574b9]">SAT</div>
             </div>
-
-            {/* カレンダー */}
 
             {loadedAvailabilityKey !== availabilityKey ? (
               <div className="mt-2 flex h-40 items-center justify-center rounded-2xl bg-white/30 text-sm font-bold text-black/40">
@@ -600,7 +608,9 @@ export default function BookingPage() {
               </p>
 
               <p className="mt-2 font-black">
-                基本料金目安 {formatYen(selectedDay.estimatedPrice)}〜
+                {selectedDay.estimatedPrice != null
+                  ? `基本料金目安 ${formatYen(selectedDay.estimatedPrice)}〜`
+                  : "料金は内容確認後にご案内します"}
               </p>
             </div>
           )}
@@ -616,11 +626,7 @@ export default function BookingPage() {
 
             <h2 className="mt-1 text-2xl font-black">ご依頼情報</h2>
 
-            {/* 名前・連絡先 + 選択日 */}
-
             <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-start">
-              {/* 左側 */}
-
               <div className="space-y-5">
                 <label className="block">
                   <span className="font-bold">お名前</span>
@@ -652,8 +658,6 @@ export default function BookingPage() {
                 </label>
               </div>
 
-              {/* 右側：選択中の日付 */}
-
               <div className="overflow-hidden rounded-2xl border-2 border-black bg-[#dcd4f5] shadow-[3px_3px_0_#202020]">
                 <div className="border-b-2 border-black bg-white/45 px-4 py-2">
                   <p className="text-[9px] font-black tracking-[0.18em]">
@@ -682,8 +686,6 @@ export default function BookingPage() {
                 </div>
               </div>
             </div>
-
-            {/* ここから横幅いっぱい */}
 
             <div className="mt-5 space-y-5">
               <label className="block">
@@ -719,9 +721,11 @@ export default function BookingPage() {
 
                   <span className="font-bold">本</span>
                 </div>
-              </label>
 
-              {/* 素材URL */}
+                <p className="mt-2 text-xs leading-5 text-black/50">
+                  本数はお見積もり確認用です。この時点では料金に自動加算されません。
+                </p>
+              </label>
 
               <label className="block">
                 <span className="font-bold">素材URL</span>
@@ -852,37 +856,25 @@ export default function BookingPage() {
             <div className="mt-6 space-y-2 rounded-xl bg-white/70 p-5">
               <p>
                 <strong>お名前：</strong>
-
                 {name}
               </p>
 
               <p>
                 <strong>ご連絡先：</strong>
-
                 {contact}
               </p>
 
               <p>
                 <strong>曲名：</strong>
-
                 {songTitle}
               </p>
 
-              {/* {paymentMethod && (
-                <p>
-                  <strong>お支払い方法：</strong>
-
-                  {getPaymentMethodLabel(paymentMethod)}
-                </p>
-              )} */}
-
               <p>
                 <strong>コース：</strong>
-
                 {getServiceLabel(service)}
               </p>
 
-              {service === "full" && (
+              {service !== "short" && (
                 <p>
                   <strong>歌唱人数：</strong>
                   {singers}人
@@ -896,7 +888,6 @@ export default function BookingPage() {
 
               <p>
                 <strong>初稿お渡し希望日：</strong>
-
                 {formatLongDate(selectedDate)}
               </p>
 
@@ -938,8 +929,10 @@ export default function BookingPage() {
               <p className="font-black">料金・プランは内容確認後に確定します</p>
 
               <p className="mt-2 text-sm leading-6 text-black/60">
+                基本料金に加え、コーラス・ハモリなどの追加料金が発生する場合があります。
+                正式なお見積もりは、ご依頼内容を確認後にご案内します。
+                <br />
                 選択いただいた日付は初稿のお渡し予定日です。
-                初稿確認後に修正対応を行い、その後に最終納品となります。
               </p>
             </div>
 
@@ -979,7 +972,7 @@ export default function BookingPage() {
                         chorusCount,
                         materialLinks,
                         requestNote,
-                        // paymentMethod,
+                        paymentMethod: "bank_transfer",
                         deliveryDate: selectedDate,
                       }),
                     });
@@ -1008,6 +1001,7 @@ export default function BookingPage() {
 
                       return;
                     }
+
                     setClientProjectPath(
                       typeof data.clientProjectPath === "string"
                         ? data.clientProjectPath

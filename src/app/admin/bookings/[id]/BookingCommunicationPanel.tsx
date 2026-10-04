@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { getServiceLabel } from "@/lib/booking";
+
+type ReplyTemplateType = "estimate" | "confirmed";
 
 type BookingCommunicationPanelProps = {
   customerName: string;
@@ -29,19 +32,6 @@ function formatYen(value: number) {
     currency: "JPY",
     maximumFractionDigits: 0,
   }).format(value);
-}
-
-function getServiceLabel(serviceType: string) {
-  switch (serviceType) {
-    case "full":
-      return "フルコーラス";
-
-    case "short":
-      return "short";
-
-    default:
-      return serviceType;
-  }
 }
 
 function isEmailAddress(value: string) {
@@ -78,19 +68,18 @@ export default function BookingCommunicationPanel({
 
   const xHandle = contactIsEmail ? "" : getXHandle(contact);
 
-  const projectUrl = clientProjectUrl;
+  const [templateType, setTemplateType] =
+    useState<ReplyTemplateType>("estimate");
 
-  const [subject, setSubject] = useState(
-    `【WRAYMIX】${songTitle} ご依頼内容のご確認`,
-  );
+  function getSubject(type: ReplyTemplateType) {
+    if (type === "confirmed") {
+      return `【WRAYMIX】${songTitle} 受付確定のご連絡`;
+    }
 
-  const [replyText, setReplyText] = useState(() =>
-    buildReplyText(clientProjectUrl),
-  );
+    return `【WRAYMIX】${songTitle} お見積もりのご確認`;
+  }
 
-  const [notice, setNotice] = useState("");
-
-  function buildReplyText(url: string) {
+  function buildReplyText(url: string, type: ReplyTemplateType) {
     const plan = planLabel || getServiceLabel(serviceType);
 
     const price = quotedPrice != null ? formatYen(quotedPrice) : "未確定";
@@ -101,6 +90,28 @@ export default function BookingCommunicationPanel({
         : paymentMethod === "bank_transfer"
           ? "銀行振込"
           : "未設定";
+
+    if (type === "confirmed") {
+      return `${customerName}様
+
+ご確認ありがとうございます！
+以下の内容で受付確定いたしました。
+
+【受付内容】
+曲名：${songTitle}
+プラン：${plan}
+料金：${price}
+初稿お渡し予定：${formatDate(deliveryDate)}
+お支払い方法：${paymentLabel}
+
+こちらの内容で進行いたします！
+
+進行状況・料金・初稿予定日は、以下のご依頼専用ページからいつでもご確認いただけます。
+${url}
+
+ご不明点や追加のご希望などありましたら、お気軽にご連絡ください。
+よろしくお願いいたします！`;
+    }
 
     return `${customerName}様
 
@@ -124,6 +135,36 @@ ${url}
 よろしくお願いいたします！`;
   }
 
+  const [subject, setSubject] = useState(() => getSubject("estimate"));
+
+  const [replyText, setReplyText] = useState(() =>
+    buildReplyText(clientProjectUrl, "estimate"),
+  );
+
+  const [notice, setNotice] = useState("");
+
+  function changeTemplate(type: ReplyTemplateType) {
+    setTemplateType(type);
+
+    setSubject(getSubject(type));
+
+    setReplyText(buildReplyText(clientProjectUrl, type));
+
+    setNotice(
+      type === "estimate"
+        ? "見積もりテンプレートに切り替えました。"
+        : "受付確定テンプレートに切り替えました。",
+    );
+  }
+
+  function regenerateTemplate() {
+    setSubject(getSubject(templateType));
+
+    setReplyText(buildReplyText(clientProjectUrl, templateType));
+
+    setNotice("ひな型を再生成しました。");
+  }
+
   async function copyText(value: string, message: string) {
     try {
       await navigator.clipboard.writeText(value);
@@ -134,14 +175,6 @@ ${url}
 
       setNotice("コピーに失敗しました。");
     }
-  }
-
-  function regenerateTemplate() {
-    setReplyText(buildReplyText(projectUrl));
-
-    setSubject(`【WRAYMIX】${songTitle} ご依頼内容のご確認`);
-
-    setNotice("ひな型を再生成しました。");
   }
 
   function openGmail() {
@@ -201,8 +234,6 @@ ${url}
       <p className="text-xs font-black tracking-[0.18em]">CONTACT & REPLY</p>
 
       <h2 className="mt-1 text-2xl font-black">お客様への連絡</h2>
-
-      {/* CONTACT */}
 
       <div className="mt-6 rounded-2xl border-2 border-black bg-white p-5">
         <p className="text-xs font-black tracking-[0.15em] text-black/45">
@@ -266,19 +297,17 @@ ${url}
         )}
       </div>
 
-      {/* PROJECT LINK */}
-
       <div className="mt-4 rounded-2xl border-2 border-black bg-[#bfe3d1] p-5">
         <p className="text-xs font-black tracking-[0.15em]">PROJECT PAGE</p>
 
         <p className="mt-2 break-all text-xs leading-5 text-black/60">
-          {projectUrl}
+          {clientProjectUrl}
         </p>
 
         <button
           type="button"
           onClick={() =>
-            copyText(projectUrl, "案件ページURLをコピーしました。")
+            copyText(clientProjectUrl, "案件ページURLをコピーしました。")
           }
           className="mt-3 rounded-xl border-2 border-black bg-white px-4 py-2 text-xs font-black"
         >
@@ -286,24 +315,44 @@ ${url}
         </button>
       </div>
 
-      {/* TEMPLATE */}
-
       <div className="mt-4 rounded-2xl border-2 border-black bg-white p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-black tracking-[0.15em]">
-              REPLY TEMPLATE
-            </p>
+        <p className="text-xs font-black tracking-[0.15em]">REPLY TEMPLATE</p>
 
-            <h3 className="mt-1 text-lg font-black">受付確定メッセージ</h3>
-          </div>
+        <h3 className="mt-1 text-lg font-black">返信ひな型</h3>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => changeTemplate("estimate")}
+            className={`rounded-xl border-2 border-black px-4 py-3 text-sm font-black ${
+              templateType === "estimate"
+                ? "bg-black text-white"
+                : "bg-[#f7f1df]"
+            }`}
+          >
+            見積もりを送る
+          </button>
 
           <button
             type="button"
-            onClick={regenerateTemplate}
-            className="rounded-xl border-2 border-black bg-[#f7f1df] px-4 py-2 text-xs font-black"
+            onClick={() => changeTemplate("confirmed")}
+            className={`rounded-xl border-2 border-black px-4 py-3 text-sm font-black ${
+              templateType === "confirmed"
+                ? "bg-black text-white"
+                : "bg-[#f7f1df]"
+            }`}
           >
-            ひな型を再生成
+            受付確定を送る
+          </button>
+        </div>
+
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            onClick={regenerateTemplate}
+            className="rounded-xl border-2 border-black bg-white px-4 py-2 text-xs font-black"
+          >
+            現在の内容で再生成
           </button>
         </div>
 
@@ -325,7 +374,7 @@ ${url}
           <textarea
             value={replyText}
             onChange={(event) => setReplyText(event.target.value)}
-            rows={14}
+            rows={16}
             className="mt-2 w-full resize-y rounded-xl border-2 border-black bg-[#fffdf8] p-4 text-sm leading-6"
           />
         </label>

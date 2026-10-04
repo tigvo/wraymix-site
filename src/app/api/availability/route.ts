@@ -4,7 +4,12 @@ import { prisma } from "@/lib/prisma";
 
 import { buildAllocationPlan, shiftDate } from "@/lib/allocation";
 
-import { getBasePrice, getBookingCost, type ServiceType } from "@/lib/booking";
+import {
+  bookingConsumesCapacity,
+  getBasePrice,
+  getBookingCost,
+  type ServiceType,
+} from "@/lib/booking";
 
 import { addDays, getTodayInJapan, getTomorrowInJapan } from "@/lib/japanDate";
 
@@ -16,7 +21,12 @@ export async function GET(request: Request) {
 
     const singers = Number(searchParams.get("singers") ?? 1);
 
-    if (service !== "full" && service !== "short") {
+    const validServices = ["full", "one_chorus", "short"] as const;
+
+    if (
+      typeof service !== "string" ||
+      !validServices.includes(service as (typeof validServices)[number])
+    ) {
       return NextResponse.json(
         {
           error: "不正なコースです。",
@@ -27,17 +37,21 @@ export async function GET(request: Request) {
       );
     }
 
+    const serviceType = service as ServiceType;
+
     const singerCount = Number.isInteger(singers) && singers >= 1 ? singers : 1;
 
-    const requiredCost = getBookingCost(service as ServiceType, singerCount);
+    const requiredCost = getBookingCost(serviceType, singerCount);
 
-    const basePrice = getBasePrice(service as ServiceType);
+    const basePrice = getBasePrice(serviceType);
 
     const today = getTodayInJapan();
+
     const tomorrow = getTomorrowInJapan();
+
     const rushDeadline = addDays(today, 2);
 
-    // 今日も「作業日」として使うため取得する
+    // 今日も作業日として使用するため取得
     const scheduleDays = await prisma.scheduleDay.findMany({
       where: {
         date: {
@@ -67,7 +81,7 @@ export async function GET(request: Request) {
       capacity: day.capacity,
 
       used: day.allocations.reduce((total, allocation) => {
-        if (allocation.booking.status === "cancelled") {
+        if (!bookingConsumesCapacity(allocation.booking.status)) {
           return total;
         }
 
@@ -76,19 +90,23 @@ export async function GET(request: Request) {
     }));
 
     const availability = scheduleDays
-      // 当日は表示しない。翌日以降はOFFの日も返す
-      .filter((day) => day.bookable && day.capacity > 0 && day.date >= tomorrow)
+      // 当日の予約だけ不可。
+      // OFF / 0pt の日も × FULL として返す
+      .filter((day) => day.date >= tomorrow)
       .map((deliveryDay) => {
         const isExpress = deliveryDay.date <= rushDeadline;
 
-        // 管理側でOFF、または0ptの日は
-        // 客側では「受付終了」として表示する
-        if (!deliveryDay.bookable || deliveryDay.capacity <= 0) {
+        const estimatedPrice = isExpress
+          ? Math.round(basePrice * 1.5)
+          : basePrice;
+
+        // 管理側でOFF、またはcapacity 0の日
+        if (deliveryDay.capacity <= 0) {
           return {
             date: deliveryDay.date,
             status: "full" as const,
             isExpress,
-            estimatedPrice: isExpress ? Math.round(basePrice * 1.5) : basePrice,
+            estimatedPrice,
           };
         }
 
@@ -121,8 +139,7 @@ export async function GET(request: Request) {
           date: deliveryDay.date,
           status,
           isExpress,
-
-          estimatedPrice: isExpress ? Math.round(basePrice * 1.5) : basePrice,
+          estimatedPrice,
         };
       });
 

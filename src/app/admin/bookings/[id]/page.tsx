@@ -20,14 +20,13 @@ function getStatusLabel(status: string) {
   switch (status) {
     case "pending":
     case "pending_review":
+    case "awaiting_approval":
       return "内容確認中";
 
     case "reserved":
     case "confirmed":
-      return "受付確定";
-
     case "mixing":
-      return "MIX制作中";
+      return "受付確定";
 
     case "first_draft":
       return "初稿提出済み";
