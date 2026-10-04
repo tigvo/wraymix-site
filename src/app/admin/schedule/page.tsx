@@ -187,6 +187,9 @@ function BookingEditor({
 
   const [isSaving, setIsSaving] = useState(false);
 
+  const [singerCount, setSingerCount] = useState(booking.singerCount);
+  const [chorusCount, setChorusCount] = useState(booking.chorusCount);
+
   async function patchBooking(values: Record<string, unknown>) {
     const response = await fetch("/api/bookings", {
       method: "PATCH",
@@ -222,6 +225,8 @@ function BookingEditor({
       await patchBooking({
         planLabel,
         quotedPrice,
+        singerCount,
+        chorusCount,
         costPoint,
         deliveryDate,
         adminNote,
@@ -351,6 +356,39 @@ function BookingEditor({
             </div>
           </div>
         )}
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 12,
+        }}
+      >
+        <label>
+          <strong>歌唱人数</strong>
+
+          <input
+            type="number"
+            min="1"
+            value={singerCount}
+            onChange={(event) => setSingerCount(Number(event.target.value))}
+            className="wray-calendar-input"
+            style={{ marginTop: 6 }}
+          />
+        </label>
+
+        <label>
+          <strong>コーラス・ハモリ本数</strong>
+
+          <input
+            type="number"
+            min="0"
+            value={chorusCount}
+            onChange={(event) => setChorusCount(Number(event.target.value))}
+            className="wray-calendar-input"
+            style={{ marginTop: 6 }}
+          />
+        </label>
       </div>
 
       <div

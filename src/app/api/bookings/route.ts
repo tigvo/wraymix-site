@@ -471,6 +471,42 @@ export async function PATCH(request: Request) {
       ? Number(body.costPoint)
       : current.costPoint;
 
+    const nextSingerCount = Object.prototype.hasOwnProperty.call(
+      body,
+      "singerCount",
+    )
+      ? Number(body.singerCount)
+      : current.singerCount;
+
+    const nextChorusCount = Object.prototype.hasOwnProperty.call(
+      body,
+      "chorusCount",
+    )
+      ? Number(body.chorusCount)
+      : current.chorusCount;
+
+    if (!Number.isInteger(nextSingerCount) || nextSingerCount < 1) {
+      return NextResponse.json(
+        {
+          error: "歌唱人数が不正です。",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    if (!Number.isInteger(nextChorusCount) || nextChorusCount < 0) {
+      return NextResponse.json(
+        {
+          error: "コーラス本数が不正です。",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
     const nextDeliveryDate = Object.prototype.hasOwnProperty.call(
       body,
       "deliveryDate",
@@ -559,6 +595,10 @@ export async function PATCH(request: Request) {
           deliveryDate: nextDeliveryDate,
 
           isExpress: nextIsExpress,
+
+          singerCount: nextSingerCount,
+
+          chorusCount: nextChorusCount,
         },
 
         include: {
