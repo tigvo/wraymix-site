@@ -164,6 +164,8 @@ export default async function BookingDetailPage({
           initialCostPoint={booking.costPoint}
           initialDeliveryDate={booking.deliveryDate}
           initialAdminNote={booking.adminNote}
+          initialPortfolioPermission={booking.portfolioPermission}
+          initialPortfolioQueued={booking.portfolioQueued}
           clientProjectPath={clientProjectPath}
         />
 
