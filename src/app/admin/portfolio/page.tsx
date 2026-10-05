@@ -171,6 +171,7 @@ export default function PortfolioAdminPage() {
             url,
             thumbnailUrl,
             category,
+            published,
             sourceBookingId,
           }),
         });
@@ -183,21 +184,6 @@ export default function PortfolioAdminPage() {
           return;
         }
 
-        // 新規追加時に非公開を選んでいた場合
-        if (!published) {
-          await fetch("/api/portfolio", {
-            method: "PATCH",
-
-            headers: {
-              "Content-Type": "application/json",
-            },
-
-            body: JSON.stringify({
-              id: data.item.id,
-              published: false,
-            }),
-          });
-        }
       } else {
         const response = await fetch("/api/portfolio", {
           method: "PATCH",
