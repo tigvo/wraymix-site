@@ -18,6 +18,8 @@ import { requireAdmin } from "@/lib/adminAuth";
 
 import { createClientBookingPath } from "@/lib/clientBookingAccess";
 
+import { sendBookingNotification } from "@/lib/bookingNotification";
+
 const allowedStatuses = [
   "pending_review",
   "reserved",
@@ -280,6 +282,31 @@ export async function POST(request: Request) {
           status: 500,
         },
       );
+    }
+
+    try {
+      await sendBookingNotification({
+        id: booking.id,
+
+        name: booking.name,
+        contact: booking.contact,
+        songTitle: booking.songTitle,
+
+        serviceType: booking.serviceType,
+        singerCount: booking.singerCount,
+        chorusCount: booking.chorusCount,
+
+        deliveryDate: booking.deliveryDate,
+
+        planLabel: booking.planLabel,
+        quotedPrice: booking.quotedPrice,
+
+        isExpress: booking.isExpress,
+
+        requestNote: booking.requestNote,
+      });
+    } catch (error) {
+      console.error("Discord予約通知の送信に失敗しました。", error);
     }
 
     return NextResponse.json({
