@@ -18,6 +18,13 @@ type AvailabilityDay = {
   estimatedPrice: number | null;
 };
 
+type AvailabilityResponse = {
+  availability: AvailabilityDay[];
+  earliestAvailableDate: string | null;
+};
+
+const availabilityCache = new Map<string, AvailabilityResponse>();
+
 // type PaymentMethod = "bank_transfer" | "credit_card";
 
 // function getPaymentMethodLabel(method: PaymentMethod) {
@@ -138,6 +145,8 @@ export default function BookingPage() {
 
   const [requestNote, setRequestNote] = useState("");
 
+  const [contactWebsite, setContactWebsite] = useState("");
+
   // const [paymentMethod, setPaymentMethod] =
   //   useState<PaymentMethod>("bank_transfer");
 
@@ -162,29 +171,45 @@ export default function BookingPage() {
   useEffect(() => {
     let cancelled = false;
 
+    const applyAvailability = (data: AvailabilityResponse) => {
+      if (cancelled) {
+        return;
+      }
+
+      setSchedule(data.availability ?? []);
+
+      setEarliestDate(data.earliestAvailableDate ?? null);
+
+      setLoadedAvailabilityKey(availabilityKey);
+
+      const earliest = data.earliestAvailableDate;
+
+      if (earliest) {
+        const date = new Date(`${earliest}T00:00:00`);
+
+        setCalendarYear(date.getFullYear());
+
+        setCalendarMonth(date.getMonth());
+      }
+    };
+
+    const cached = availabilityCache.get(availabilityKey);
+
+    if (cached) {
+      applyAvailability(cached);
+
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setLoadedAvailabilityKey(null);
+
     fetchAvailability(service, singers)
-      .then((data) => {
-        if (cancelled) {
-          return;
-        }
+      .then((data: AvailabilityResponse) => {
+        availabilityCache.set(availabilityKey, data);
 
-        setSchedule(data.availability ?? []);
-
-        setEarliestDate(data.earliestAvailableDate ?? null);
-
-        // この service / singers の空き状況を取得完了
-        setLoadedAvailabilityKey(`${service}:${singers}`);
-
-        const earliest = data.earliestAvailableDate;
-
-        // 最短受付可能日の月を最初に表示
-        if (earliest) {
-          const date = new Date(`${earliest}T00:00:00`);
-
-          setCalendarYear(date.getFullYear());
-
-          setCalendarMonth(date.getMonth());
-        }
+        applyAvailability(data);
       })
       .catch((error) => {
         console.error("空き状況取得エラー:", error);
@@ -193,7 +218,7 @@ export default function BookingPage() {
     return () => {
       cancelled = true;
     };
-  }, [service, singers]);
+  }, [availabilityKey, service, singers]);
 
   useEffect(() => {
     if (!isConfirming) {
@@ -707,6 +732,22 @@ export default function BookingPage() {
                 </div>
               </div>
 
+              <div
+                aria-hidden="true"
+                className="absolute -left-[9999px] h-px w-px overflow-hidden"
+              >
+                <label>
+                  Website
+                  <input
+                    type="text"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={contactWebsite}
+                    onChange={(event) => setContactWebsite(event.target.value)}
+                  />
+                </label>
+              </div>
+
               <div className="mt-5 space-y-5">
                 <label className="block">
                   <span className="font-bold">曲名</span>
@@ -998,6 +1039,7 @@ export default function BookingPage() {
                           requestNote,
                           paymentMethod: "bank_transfer",
                           deliveryDate: selectedDate,
+                          contactWebsite,
                         }),
                       });
 
@@ -1007,10 +1049,12 @@ export default function BookingPage() {
                         alert(data.error ?? "送信に失敗しました。");
 
                         if (response.status === 409) {
-                          const updated = await fetchAvailability(
+                          const updated = (await fetchAvailability(
                             service,
                             singers,
-                          );
+                          )) as AvailabilityResponse;
+
+                          availabilityCache.set(availabilityKey, updated);
 
                           setSchedule(updated.availability ?? []);
 
@@ -1018,7 +1062,7 @@ export default function BookingPage() {
                             updated.earliestAvailableDate ?? null,
                           );
 
-                          setLoadedAvailabilityKey(`${service}:${singers}`);
+                          setLoadedAvailabilityKey(availabilityKey);
 
                           setSelectedDate(null);
 
@@ -1033,6 +1077,8 @@ export default function BookingPage() {
                           ? data.clientProjectPath
                           : null,
                       );
+
+                      availabilityCache.clear();
 
                       setIsCompleted(true);
                     } catch (error) {
