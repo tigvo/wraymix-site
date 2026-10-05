@@ -74,9 +74,14 @@ export async function POST(request: Request) {
     const category =
       typeof body.category === "string" ? body.category.trim() : "";
 
-    const sourceBookingId = Number(body.sourceBookingId);
+    const rawSourceBookingId = body.sourceBookingId;
 
-    const hasSourceBookingId = Number.isInteger(sourceBookingId);
+    const sourceBookingId = Number(rawSourceBookingId);
+
+    const hasSourceBookingId =
+      rawSourceBookingId !== null &&
+      rawSourceBookingId !== undefined &&
+      Number.isInteger(sourceBookingId);
 
     if (!title || !url) {
       return NextResponse.json(
