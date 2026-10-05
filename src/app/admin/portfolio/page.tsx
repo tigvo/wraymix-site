@@ -143,11 +143,6 @@ export default function PortfolioAdminPage() {
     setUrl("");
     setThumbnailUrl("");
     setPublished(true);
-
-    window.scrollTo({
-      top: document.body.scrollHeight,
-      behavior: "smooth",
-    });
   }
 
   async function saveItem(event: FormEvent) {
