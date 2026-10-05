@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { FormEvent, useEffect, useState } from "react";
 
 type PortfolioItem = {
@@ -11,6 +13,15 @@ type PortfolioItem = {
   category: string | null;
   published: boolean;
   sortOrder: number;
+};
+
+type QueuedBooking = {
+  id: number;
+  name: string;
+  songTitle: string;
+  serviceType: string;
+  portfolioPermission: string;
+  portfolioQueued: boolean;
 };
 
 const categories = ["女性Vo", "男性Vo", "コラボ", "short", "その他"];
@@ -27,8 +38,28 @@ async function fetchPortfolio(): Promise<PortfolioItem[]> {
   return data.items ?? [];
 }
 
+async function fetchQueuedBookings(): Promise<QueuedBooking[]> {
+  const response = await fetch("/api/bookings");
+
+  if (!response.ok) {
+    throw new Error("掲載待ち案件の取得に失敗しました");
+  }
+
+  const data = await response.json();
+
+  return (data.bookings ?? []).filter(
+    (booking: QueuedBooking) =>
+      booking.portfolioPermission === "approved" &&
+      booking.portfolioQueued === true,
+  );
+}
+
 export default function PortfolioAdminPage() {
   const [items, setItems] = useState<PortfolioItem[]>([]);
+
+  const [queuedBookings, setQueuedBookings] = useState<QueuedBooking[]>([]);
+
+  const [sourceBookingId, setSourceBookingId] = useState<number | null>(null);
 
   const [editingId, setEditingId] = useState<number | null>(null);
 
@@ -49,11 +80,15 @@ export default function PortfolioAdminPage() {
   useEffect(() => {
     let cancelled = false;
 
-    fetchPortfolio()
-      .then((data) => {
-        if (!cancelled) {
-          setItems(data);
+    Promise.all([fetchPortfolio(), fetchQueuedBookings()])
+      .then(([portfolioItems, bookings]) => {
+        if (cancelled) {
+          return;
         }
+
+        setItems(portfolioItems);
+
+        setQueuedBookings(bookings);
       })
       .catch(console.error);
 
@@ -63,11 +98,19 @@ export default function PortfolioAdminPage() {
   }, []);
 
   async function reload() {
-    setItems(await fetchPortfolio());
+    const [portfolioItems, bookings] = await Promise.all([
+      fetchPortfolio(),
+      fetchQueuedBookings(),
+    ]);
+
+    setItems(portfolioItems);
+
+    setQueuedBookings(bookings);
   }
 
   function clearForm() {
     setEditingId(null);
+    setSourceBookingId(null);
     setTitle("");
     setCreatorName("");
     setUrl("");
@@ -78,6 +121,7 @@ export default function PortfolioAdminPage() {
 
   function startEditing(item: PortfolioItem) {
     setEditingId(item.id);
+    setSourceBookingId(null);
     setTitle(item.title);
     setCreatorName(item.creatorName ?? "");
     setUrl(item.url);
@@ -87,6 +131,21 @@ export default function PortfolioAdminPage() {
 
     window.scrollTo({
       top: 0,
+      behavior: "smooth",
+    });
+  }
+
+  function useQueuedBooking(booking: QueuedBooking) {
+    setEditingId(null);
+    setSourceBookingId(booking.id);
+    setTitle(booking.songTitle);
+    setCreatorName(booking.name);
+    setUrl("");
+    setThumbnailUrl("");
+    setPublished(true);
+
+    window.scrollTo({
+      top: document.body.scrollHeight,
       behavior: "smooth",
     });
   }
@@ -117,6 +176,7 @@ export default function PortfolioAdminPage() {
             url,
             thumbnailUrl,
             category,
+            sourceBookingId,
           }),
         });
 
@@ -318,6 +378,65 @@ export default function PortfolioAdminPage() {
           </div>
         </div>
 
+        {/* QUEUE */}
+
+        <details className="mt-8 rounded-3xl border-2 border-black bg-[#f5d48d] p-5 shadow-[5px_5px_0_#202020]">
+          <summary className="cursor-pointer list-none">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-black tracking-[0.18em]">WAITING</p>
+
+                <h2 className="mt-1 text-2xl font-black">
+                  掲載待ち {queuedBookings.length}件
+                </h2>
+              </div>
+
+              <span className="rounded-full border-2 border-black bg-white px-3 py-1 text-xs font-black">
+                開く
+              </span>
+            </div>
+          </summary>
+
+          <div className="mt-5 space-y-3">
+            {queuedBookings.length === 0 ? (
+              <div className="rounded-xl bg-white/55 p-4 text-sm text-black/55">
+                掲載待ちの案件はありません。
+              </div>
+            ) : (
+              queuedBookings.map((booking) => (
+                <div
+                  key={booking.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-black bg-white p-4"
+                >
+                  <div>
+                    <p className="font-black">{booking.songTitle}</p>
+
+                    <p className="mt-1 text-xs text-black/55">
+                      {booking.name} / BOOKING #{booking.id}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Link
+                      href={`/admin/bookings/${booking.id}`}
+                      className="rounded-lg border-2 border-black bg-white px-3 py-2 text-xs font-black"
+                    >
+                      案件を見る
+                    </Link>
+
+                    <button
+                      type="button"
+                      onClick={() => useQueuedBooking(booking)}
+                      className="rounded-lg border-2 border-black bg-black px-3 py-2 text-xs font-black text-white"
+                    >
+                      この作品を登録
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </details>
         {/* FORM */}
 
         <section className="mt-8 rounded-3xl border-2 border-black bg-[#f6cbd3] p-6 shadow-[6px_6px_0_#202020]">
@@ -328,6 +447,12 @@ export default function PortfolioAdminPage() {
           <h2 className="mt-1 text-2xl font-black">
             {editingId ? "作品を編集" : "作品を追加"}
           </h2>
+
+          {sourceBookingId !== null && editingId === null && (
+            <p className="mt-3 inline-flex rounded-full border-2 border-black bg-white px-3 py-1 text-xs font-black">
+              BOOKING #{sourceBookingId} から登録
+            </p>
+          )}
 
           <form onSubmit={saveItem} className="mt-6 grid gap-5">
             <label>
