@@ -74,6 +74,9 @@ export async function POST(request: Request) {
     const category =
       typeof body.category === "string" ? body.category.trim() : "";
 
+    const published =
+      typeof body.published === "boolean" ? body.published : true;
+
     const rawSourceBookingId = body.sourceBookingId;
 
     const sourceBookingId = Number(rawSourceBookingId);
@@ -108,7 +111,7 @@ export async function POST(request: Request) {
           url,
           thumbnailUrl: thumbnailUrl || null,
           category: category || null,
-          published: true,
+          published,
           sortOrder: (lastItem?.sortOrder ?? -1) + 1,
         },
       });
