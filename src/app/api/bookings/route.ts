@@ -20,6 +20,8 @@ import { createClientBookingPath } from "@/lib/clientBookingAccess";
 
 import { sendBookingNotification } from "@/lib/bookingNotification";
 
+import { checkBookingRateLimit } from "@/lib/bookingRateLimit";
+
 const allowedStatuses = [
   "pending_review",
   "reserved",
@@ -105,7 +107,36 @@ async function createAllocationPlan(
 
 export async function POST(request: Request) {
   try {
+    const rateLimit = checkBookingRateLimit(request);
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            "短時間に複数回の送信がありました。少し時間を空けてからお試しください。",
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(rateLimit.retryAfterSeconds),
+          },
+        },
+      );
+    }
+
     const body = await request.json();
+
+    const honeypot =
+      typeof body.contactWebsite === "string"
+        ? body.contactWebsite.trim()
+        : "";
+
+    if (honeypot) {
+      return NextResponse.json({
+        success: true,
+        clientProjectPath: null,
+      });
+    }
 
     const paymentMethod =
       typeof body.paymentMethod === "string" ? body.paymentMethod : "";
@@ -534,6 +565,44 @@ export async function PATCH(request: Request) {
       );
     }
 
+    const nextPortfolioPermission = Object.prototype.hasOwnProperty.call(
+      body,
+      "portfolioPermission",
+    )
+      ? String(body.portfolioPermission)
+      : current.portfolioPermission;
+
+    const allowedPortfolioPermissions = ["unknown", "approved", "denied"];
+
+    if (!allowedPortfolioPermissions.includes(nextPortfolioPermission)) {
+      return NextResponse.json(
+        {
+          error: "ポートフォリオ掲載許可の状態が不正です。",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    const nextPortfolioQueued = Object.prototype.hasOwnProperty.call(
+      body,
+      "portfolioQueued",
+    )
+      ? Boolean(body.portfolioQueued)
+      : current.portfolioQueued;
+
+    if (nextPortfolioQueued && nextPortfolioPermission !== "approved") {
+      return NextResponse.json(
+        {
+          error: "掲載OKの案件だけポートフォリオ掲載待ちに追加できます。",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
     const nextDeliveryDate = Object.prototype.hasOwnProperty.call(
       body,
       "deliveryDate",
@@ -626,6 +695,11 @@ export async function PATCH(request: Request) {
           singerCount: nextSingerCount,
 
           chorusCount: nextChorusCount,
+
+          portfolioPermission: nextPortfolioPermission,
+
+          portfolioQueued:
+            nextPortfolioPermission === "approved" ? nextPortfolioQueued : false,
         },
 
         include: {
