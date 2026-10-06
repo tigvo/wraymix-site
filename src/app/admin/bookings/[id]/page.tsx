@@ -2,8 +2,6 @@ import { notFound } from "next/navigation";
 
 import { prisma } from "@/lib/prisma";
 
-import { createClientBookingPath } from "@/lib/clientBookingAccess";
-
 import BookingAdminControls from "./BookingAdminControls";
 
 import BookingCommunicationPanel from "./BookingCommunicationPanel";
@@ -113,19 +111,6 @@ export default async function BookingDetailPage({
       .filter(Boolean) ?? [];
 
   /*
-   * 顧客専用ページ
-   */
-
-  const clientProjectPath = createClientBookingPath(booking.id);
-
-  const siteUrl = (process.env.SITE_URL ?? "http://localhost:3000").replace(
-    /\/$/,
-    "",
-  );
-
-  const clientProjectUrl = `${siteUrl}${clientProjectPath}`;
-
-  /*
    * 仕事用Gmail
    */
 
@@ -166,7 +151,6 @@ export default async function BookingDetailPage({
           initialAdminNote={booking.adminNote}
           initialPortfolioPermission={booking.portfolioPermission}
           initialPortfolioQueued={booking.portfolioQueued}
-          clientProjectPath={clientProjectPath}
         />
 
         {/* =========================
@@ -181,7 +165,6 @@ export default async function BookingDetailPage({
           planLabel={booking.planLabel}
           quotedPrice={booking.quotedPrice}
           deliveryDate={booking.deliveryDate}
-          clientProjectUrl={clientProjectUrl}
           workGmailAddress={workGmailAddress}
           paymentMethod={booking.paymentMethod}
         />
