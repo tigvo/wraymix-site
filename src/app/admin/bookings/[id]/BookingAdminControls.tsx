@@ -23,7 +23,6 @@ type BookingAdminControlsProps = {
 
   initialPortfolioQueued: boolean;
 
-  clientProjectPath: string;
 };
 
 const statuses = [
@@ -63,7 +62,6 @@ export default function BookingAdminControls({
   initialAdminNote,
   initialPortfolioPermission,
   initialPortfolioQueued,
-  clientProjectPath,
 }: BookingAdminControlsProps) {
   const router = useRouter();
 
@@ -167,14 +165,6 @@ export default function BookingAdminControls({
     }
   }
 
-  async function copyClientLink() {
-    const fullUrl = `${window.location.origin}${clientProjectPath}`;
-
-    await navigator.clipboard.writeText(fullUrl);
-
-    setMessage("顧客ページURLをコピーしました。");
-  }
-
   return (
     <section className="mt-6 rounded-3xl border-2 border-black bg-[#f5d48d] p-6 shadow-[5px_5px_0_#202020]">
       <p className="text-xs font-black tracking-[0.18em]">ADMIN CONTROL</p>
@@ -232,7 +222,7 @@ export default function BookingAdminControls({
           </div>
 
           <p className="mt-2 text-xs text-black/50">
-            空欄の場合、顧客ページには「内容確認後に確定」と表示されます。
+            空欄の場合は、料金未確定として扱います。
           </p>
         </label>
 
@@ -341,25 +331,6 @@ export default function BookingAdminControls({
         </label>
       </div>
 
-      {/* CLIENT PAGE */}
-
-      <div className="mt-6 rounded-2xl border-2 border-black bg-white/60 p-4">
-        <p className="text-xs font-black tracking-[0.15em]">
-          CLIENT PROJECT PAGE
-        </p>
-
-        <p className="mt-2 break-all text-xs text-black/60">
-          {clientProjectPath}
-        </p>
-
-        <button
-          type="button"
-          onClick={copyClientLink}
-          className="mt-3 rounded-xl border-2 border-black bg-white px-4 py-2 text-xs font-black"
-        >
-          顧客ページURLをコピー
-        </button>
-      </div>
 
       {message && (
         <div className="mt-5 rounded-xl border-2 border-black bg-white p-3 text-sm font-bold">
