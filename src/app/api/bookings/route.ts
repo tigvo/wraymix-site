@@ -16,8 +16,6 @@ import { getTodayInJapan, getTomorrowInJapan } from "@/lib/japanDate";
 
 import { requireAdmin } from "@/lib/adminAuth";
 
-import { createClientBookingPath } from "@/lib/clientBookingAccess";
-
 import { sendBookingNotification } from "@/lib/bookingNotification";
 
 import { checkBookingRateLimit } from "@/lib/bookingRateLimit";
@@ -134,7 +132,6 @@ export async function POST(request: Request) {
     if (honeypot) {
       return NextResponse.json({
         success: true,
-        clientProjectPath: null,
       });
     }
 
@@ -342,7 +339,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       booking,
-      clientProjectPath: createClientBookingPath(booking.id),
     });
   } catch (error) {
     console.error(error);
