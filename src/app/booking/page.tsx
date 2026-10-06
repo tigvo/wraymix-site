@@ -150,10 +150,6 @@ export default function BookingPage() {
   // const [paymentMethod, setPaymentMethod] =
   //   useState<PaymentMethod>("bank_transfer");
 
-  const [clientProjectPath, setClientProjectPath] = useState<string | null>(
-    null,
-  );
-
   const [isConfirming, setIsConfirming] = useState(false);
 
   const [isCompleted, setIsCompleted] = useState(false);
@@ -294,27 +290,13 @@ export default function BookingPage() {
                 </p>
               </div>
 
-              {clientProjectPath && (
-                <div className="mt-6 rounded-2xl border-2 border-black bg-[#dcd4f5] p-5">
-                  <p className="text-xs font-black tracking-[0.18em]">
-                    PROJECT PAGE
-                  </p>
+              <div className="mt-6 rounded-2xl border-2 border-black bg-[#dcd4f5] p-5">
+                <p className="font-black">今後のご連絡について</p>
 
-                  <p className="mt-2 font-black">ご依頼専用ページ</p>
-
-                  <p className="mt-2 text-sm leading-6 text-black/60">
-                    進行状況・料金・初稿予定日は、
-                    このページからいつでも確認できます。
-                  </p>
-
-                  <Link
-                    href={clientProjectPath}
-                    className="mt-4 inline-block rounded-xl border-2 border-black bg-black px-5 py-3 font-black text-white"
-                  >
-                    案件ページを開く →
-                  </Link>
-                </div>
-              )}
+                <p className="mt-2 text-sm leading-6 text-black/60">
+                  お見積もり・受付確定・修正・納品などのご連絡は、入力いただいたXまたはメール宛にお送りします。
+                </p>
+              </div>
 
               <div className="mt-6 space-y-2">
                 <p>
@@ -1071,12 +1053,6 @@ export default function BookingPage() {
 
                         return;
                       }
-
-                      setClientProjectPath(
-                        typeof data.clientProjectPath === "string"
-                          ? data.clientProjectPath
-                          : null,
-                      );
 
                       availabilityCache.clear();
 
