@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 
-import { buildAllocationPlan, shiftDate } from "@/lib/allocation";
+import { shiftDate } from "@/lib/allocation";
 
 import {
   bookingConsumesCapacity,
@@ -12,7 +12,7 @@ import {
   type ServiceType,
 } from "@/lib/booking";
 
-import { getTodayInJapan, getTomorrowInJapan } from "@/lib/japanDate";
+import { getTomorrowInJapan } from "@/lib/japanDate";
 
 import { requireAdmin } from "@/lib/adminAuth";
 
@@ -35,27 +35,15 @@ async function createAllocationPlan(
   deliveryDate: string,
   requiredPoints: number,
 ) {
-  const today = getTodayInJapan();
   const tomorrow = getTomorrowInJapan();
 
   if (deliveryDate < tomorrow) {
     throw new Error("SAME_DAY_NOT_ALLOWED");
   }
 
-  const candidateStart = shiftDate(deliveryDate, -7);
-
-  const startDate = candidateStart < today ? today : candidateStart;
-
-  const scheduleDays = await tx.scheduleDay.findMany({
+  const deliveryDay = await tx.scheduleDay.findUnique({
     where: {
-      date: {
-        gte: startDate,
-        lte: deliveryDate,
-      },
-    },
-
-    orderBy: {
-      date: "desc",
+      date: deliveryDate,
     },
 
     include: {
@@ -71,36 +59,34 @@ async function createAllocationPlan(
     },
   });
 
-  const deliveryDay = scheduleDays.find((day) => day.date === deliveryDate);
-
   if (!deliveryDay || deliveryDay.capacity <= 0) {
     throw new Error("DATE_NOT_AVAILABLE");
   }
 
-  const workDays = scheduleDays.map((day) => ({
-    date: day.date,
-    capacity: day.capacity,
+  const used = deliveryDay.allocations.reduce((total, allocation) => {
+    if (!bookingConsumesCapacity(allocation.booking.status)) {
+      return total;
+    }
 
-    used: day.allocations.reduce((total, allocation) => {
-      if (!bookingConsumesCapacity(allocation.booking.status)) {
-        return total;
-      }
+    if (bookingId !== null && allocation.bookingId === bookingId) {
+      return total;
+    }
 
-      if (bookingId !== null && allocation.bookingId === bookingId) {
-        return total;
-      }
+    return total + allocation.points;
+  }, 0);
 
-      return total + allocation.points;
-    }, 0),
-  }));
+  const free = Math.max(deliveryDay.capacity - used, 0);
 
-  const plan = buildAllocationPlan(workDays, requiredPoints);
-
-  if (!plan) {
+  if (free < requiredPoints) {
     throw new Error("BOOKING_CAPACITY_EXCEEDED");
   }
 
-  return plan;
+  return [
+    {
+      date: deliveryDate,
+      points: requiredPoints,
+    },
+  ];
 }
 
 export async function POST(request: Request) {
