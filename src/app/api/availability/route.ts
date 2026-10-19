@@ -2,8 +2,6 @@ import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 
-import { buildAllocationPlan, shiftDate } from "@/lib/allocation";
-
 import {
   bookingConsumesCapacity,
   getBasePrice,
@@ -51,11 +49,10 @@ export async function GET(request: Request) {
 
     const rushDeadline = addDays(today, 2);
 
-    // 今日も作業日として使用するため取得
     const scheduleDays = await prisma.scheduleDay.findMany({
       where: {
         date: {
-          gte: today,
+          gte: tomorrow,
         },
       },
 
@@ -76,22 +73,9 @@ export async function GET(request: Request) {
       },
     });
 
-    const workDays = scheduleDays.map((day) => ({
-      date: day.date,
-      capacity: day.capacity,
-
-      used: day.allocations.reduce((total, allocation) => {
-        if (!bookingConsumesCapacity(allocation.booking.status)) {
-          return total;
-        }
-
-        return total + allocation.points;
-      }, 0),
-    }));
-
     const availability = scheduleDays
-      // 当日と、受付枠を開けていない日（0pt）は候補に出さない
-      .filter((day) => day.date >= tomorrow && day.capacity > 0)
+      // 受付枠を開けていない日（0pt）は候補に出さない
+      .filter((day) => day.capacity > 0)
       .map((deliveryDay) => {
         const isExpress = deliveryDay.date <= rushDeadline;
 
@@ -99,26 +83,21 @@ export async function GET(request: Request) {
           ? Math.round(basePrice * 1.5)
           : basePrice;
 
-        const candidateStart = shiftDate(deliveryDay.date, -7);
+        const used = deliveryDay.allocations.reduce((total, allocation) => {
+          if (!bookingConsumesCapacity(allocation.booking.status)) {
+            return total;
+          }
 
-        const startDate = candidateStart < today ? today : candidateStart;
+          return total + allocation.points;
+        }, 0);
 
-        const usableDays = workDays.filter(
-          (day) => day.date >= startDate && day.date <= deliveryDay.date,
-        );
-
-        const plan = buildAllocationPlan(usableDays, requiredCost);
-
-        const totalFree = usableDays.reduce(
-          (total, day) => total + Math.max(day.capacity - day.used, 0),
-          0,
-        );
+        const free = Math.max(deliveryDay.capacity - used, 0);
 
         let status: "available" | "few" | "full";
 
-        if (!plan) {
+        if (free < requiredCost) {
           status = "full";
-        } else if (totalFree - requiredCost < 5) {
+        } else if (free - requiredCost < 5) {
           status = "few";
         } else {
           status = "available";

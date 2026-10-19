@@ -74,6 +74,18 @@ export async function POST(request: Request) {
     const category =
       typeof body.category === "string" ? body.category.trim() : "";
 
+    const published =
+      typeof body.published === "boolean" ? body.published : true;
+
+    const rawSourceBookingId = body.sourceBookingId;
+
+    const sourceBookingId = Number(rawSourceBookingId);
+
+    const hasSourceBookingId =
+      rawSourceBookingId !== null &&
+      rawSourceBookingId !== undefined &&
+      Number.isInteger(sourceBookingId);
+
     if (!title || !url) {
       return NextResponse.json(
         {
@@ -91,16 +103,34 @@ export async function POST(request: Request) {
       },
     });
 
-    const item = await prisma.portfolioItem.create({
-      data: {
-        title,
-        creatorName: creatorName || null,
-        url,
-        thumbnailUrl: thumbnailUrl || null,
-        category: category || null,
-        published: true,
-        sortOrder: (lastItem?.sortOrder ?? -1) + 1,
-      },
+    const item = await prisma.$transaction(async (tx) => {
+      const created = await tx.portfolioItem.create({
+        data: {
+          title,
+          creatorName: creatorName || null,
+          url,
+          thumbnailUrl: thumbnailUrl || null,
+          category: category || null,
+          published,
+          sortOrder: (lastItem?.sortOrder ?? -1) + 1,
+        },
+      });
+
+      if (hasSourceBookingId) {
+        await tx.booking.updateMany({
+          where: {
+            id: sourceBookingId,
+            portfolioPermission: "approved",
+            portfolioQueued: true,
+          },
+
+          data: {
+            portfolioQueued: false,
+          },
+        });
+      }
+
+      return created;
     });
 
     return NextResponse.json({

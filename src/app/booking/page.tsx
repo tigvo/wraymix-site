@@ -18,6 +18,13 @@ type AvailabilityDay = {
   estimatedPrice: number | null;
 };
 
+type AvailabilityResponse = {
+  availability: AvailabilityDay[];
+  earliestAvailableDate: string | null;
+};
+
+const availabilityCache = new Map<string, AvailabilityResponse>();
+
 // type PaymentMethod = "bank_transfer" | "credit_card";
 
 // function getPaymentMethodLabel(method: PaymentMethod) {
@@ -138,12 +145,10 @@ export default function BookingPage() {
 
   const [requestNote, setRequestNote] = useState("");
 
+  const [contactWebsite, setContactWebsite] = useState("");
+
   // const [paymentMethod, setPaymentMethod] =
   //   useState<PaymentMethod>("bank_transfer");
-
-  const [clientProjectPath, setClientProjectPath] = useState<string | null>(
-    null,
-  );
 
   const [isConfirming, setIsConfirming] = useState(false);
 
@@ -162,29 +167,45 @@ export default function BookingPage() {
   useEffect(() => {
     let cancelled = false;
 
+    const applyAvailability = (data: AvailabilityResponse) => {
+      if (cancelled) {
+        return;
+      }
+
+      setSchedule(data.availability ?? []);
+
+      setEarliestDate(data.earliestAvailableDate ?? null);
+
+      setLoadedAvailabilityKey(availabilityKey);
+
+      const earliest = data.earliestAvailableDate;
+
+      if (earliest) {
+        const date = new Date(`${earliest}T00:00:00`);
+
+        setCalendarYear(date.getFullYear());
+
+        setCalendarMonth(date.getMonth());
+      }
+    };
+
+    const cached = availabilityCache.get(availabilityKey);
+
+    if (cached) {
+      applyAvailability(cached);
+
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setLoadedAvailabilityKey(null);
+
     fetchAvailability(service, singers)
-      .then((data) => {
-        if (cancelled) {
-          return;
-        }
+      .then((data: AvailabilityResponse) => {
+        availabilityCache.set(availabilityKey, data);
 
-        setSchedule(data.availability ?? []);
-
-        setEarliestDate(data.earliestAvailableDate ?? null);
-
-        // この service / singers の空き状況を取得完了
-        setLoadedAvailabilityKey(`${service}:${singers}`);
-
-        const earliest = data.earliestAvailableDate;
-
-        // 最短受付可能日の月を最初に表示
-        if (earliest) {
-          const date = new Date(`${earliest}T00:00:00`);
-
-          setCalendarYear(date.getFullYear());
-
-          setCalendarMonth(date.getMonth());
-        }
+        applyAvailability(data);
       })
       .catch((error) => {
         console.error("空き状況取得エラー:", error);
@@ -193,7 +214,7 @@ export default function BookingPage() {
     return () => {
       cancelled = true;
     };
-  }, [service, singers]);
+  }, [availabilityKey, service, singers]);
 
   useEffect(() => {
     if (!isConfirming) {
@@ -269,27 +290,13 @@ export default function BookingPage() {
                 </p>
               </div>
 
-              {clientProjectPath && (
-                <div className="mt-6 rounded-2xl border-2 border-black bg-[#dcd4f5] p-5">
-                  <p className="text-xs font-black tracking-[0.18em]">
-                    PROJECT PAGE
-                  </p>
+              <div className="mt-6 rounded-2xl border-2 border-black bg-[#dcd4f5] p-5">
+                <p className="font-black">今後のご連絡について</p>
 
-                  <p className="mt-2 font-black">ご依頼専用ページ</p>
-
-                  <p className="mt-2 text-sm leading-6 text-black/60">
-                    進行状況・料金・初稿予定日は、
-                    このページからいつでも確認できます。
-                  </p>
-
-                  <Link
-                    href={clientProjectPath}
-                    className="mt-4 inline-block rounded-xl border-2 border-black bg-black px-5 py-3 font-black text-white"
-                  >
-                    案件ページを開く →
-                  </Link>
-                </div>
-              )}
+                <p className="mt-2 text-sm leading-6 text-black/60">
+                  お見積もり・受付確定・修正・納品などのご連絡は、入力いただいたXまたはメール宛にお送りします。
+                </p>
+              </div>
 
               <div className="mt-6 space-y-2">
                 <p>
@@ -707,6 +714,22 @@ export default function BookingPage() {
                 </div>
               </div>
 
+              <div
+                aria-hidden="true"
+                className="absolute -left-[9999px] h-px w-px overflow-hidden"
+              >
+                <label>
+                  Website
+                  <input
+                    type="text"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={contactWebsite}
+                    onChange={(event) => setContactWebsite(event.target.value)}
+                  />
+                </label>
+              </div>
+
               <div className="mt-5 space-y-5">
                 <label className="block">
                   <span className="font-bold">曲名</span>
@@ -998,6 +1021,7 @@ export default function BookingPage() {
                           requestNote,
                           paymentMethod: "bank_transfer",
                           deliveryDate: selectedDate,
+                          contactWebsite,
                         }),
                       });
 
@@ -1007,10 +1031,12 @@ export default function BookingPage() {
                         alert(data.error ?? "送信に失敗しました。");
 
                         if (response.status === 409) {
-                          const updated = await fetchAvailability(
+                          const updated = (await fetchAvailability(
                             service,
                             singers,
-                          );
+                          )) as AvailabilityResponse;
+
+                          availabilityCache.set(availabilityKey, updated);
 
                           setSchedule(updated.availability ?? []);
 
@@ -1018,7 +1044,7 @@ export default function BookingPage() {
                             updated.earliestAvailableDate ?? null,
                           );
 
-                          setLoadedAvailabilityKey(`${service}:${singers}`);
+                          setLoadedAvailabilityKey(availabilityKey);
 
                           setSelectedDate(null);
 
@@ -1028,11 +1054,7 @@ export default function BookingPage() {
                         return;
                       }
 
-                      setClientProjectPath(
-                        typeof data.clientProjectPath === "string"
-                          ? data.clientProjectPath
-                          : null,
-                      );
+                      availabilityCache.clear();
 
                       setIsCompleted(true);
                     } catch (error) {

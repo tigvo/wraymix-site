@@ -19,7 +19,10 @@ type BookingAdminControlsProps = {
 
   initialAdminNote: string | null;
 
-  clientProjectPath: string;
+  initialPortfolioPermission: string;
+
+  initialPortfolioQueued: boolean;
+
 };
 
 const statuses = [
@@ -57,7 +60,8 @@ export default function BookingAdminControls({
   initialCostPoint,
   initialDeliveryDate,
   initialAdminNote,
-  clientProjectPath,
+  initialPortfolioPermission,
+  initialPortfolioQueued,
 }: BookingAdminControlsProps) {
   const router = useRouter();
 
@@ -74,6 +78,14 @@ export default function BookingAdminControls({
   const [deliveryDate, setDeliveryDate] = useState(initialDeliveryDate);
 
   const [adminNote, setAdminNote] = useState(initialAdminNote ?? "");
+
+  const [portfolioPermission, setPortfolioPermission] = useState(
+    initialPortfolioPermission,
+  );
+
+  const [portfolioQueued, setPortfolioQueued] = useState(
+    initialPortfolioQueued,
+  );
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -125,6 +137,11 @@ export default function BookingAdminControls({
           deliveryDate,
 
           adminNote: adminNote.trim() || null,
+
+          portfolioPermission,
+
+          portfolioQueued:
+            portfolioPermission === "approved" ? portfolioQueued : false,
         }),
       });
 
@@ -146,14 +163,6 @@ export default function BookingAdminControls({
     } finally {
       setIsSaving(false);
     }
-  }
-
-  async function copyClientLink() {
-    const fullUrl = `${window.location.origin}${clientProjectPath}`;
-
-    await navigator.clipboard.writeText(fullUrl);
-
-    setMessage("顧客ページURLをコピーしました。");
   }
 
   return (
@@ -213,7 +222,7 @@ export default function BookingAdminControls({
           </div>
 
           <p className="mt-2 text-xs text-black/50">
-            空欄の場合、顧客ページには「内容確認後に確定」と表示されます。
+            空欄の場合は、料金未確定として扱います。
           </p>
         </label>
 
@@ -252,6 +261,57 @@ export default function BookingAdminControls({
           </p>
         </label>
 
+        {/* PORTFOLIO */}
+
+        <div className="md:col-span-2 rounded-2xl border-2 border-black bg-white/55 p-4">
+          <p className="text-sm font-black">ポートフォリオ掲載</p>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <label className="block">
+              <span className="text-xs font-bold text-black/60">掲載許可</span>
+
+              <select
+                value={portfolioPermission}
+                onChange={(event) => {
+                  const value = event.target.value;
+
+                  setPortfolioPermission(value);
+
+                  if (value !== "approved") {
+                    setPortfolioQueued(false);
+                  }
+                }}
+                className="mt-2 w-full rounded-xl border-2 border-black bg-white p-3 font-bold"
+              >
+                <option value="unknown">未確認</option>
+                <option value="approved">掲載OK</option>
+                <option value="denied">掲載NG</option>
+              </select>
+            </label>
+
+            <label
+              className={`flex items-center gap-3 rounded-xl border-2 border-black p-3 font-bold ${
+                portfolioPermission === "approved"
+                  ? "bg-[#bfe3d1]"
+                  : "bg-black/5 text-black/35"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={portfolioQueued}
+                disabled={portfolioPermission !== "approved"}
+                onChange={(event) => setPortfolioQueued(event.target.checked)}
+                className="h-5 w-5"
+              />
+
+              あとでポートフォリオに追加
+            </label>
+          </div>
+
+          <p className="mt-2 text-xs leading-5 text-black/50">
+            掲載OK＋チェックONの案件だけ、PORTFOLIO画面の「掲載待ち」に表示されます。
+          </p>
+        </div>
         {/* ADMIN NOTE */}
 
         <label className="block md:col-span-2">
@@ -271,25 +331,6 @@ export default function BookingAdminControls({
         </label>
       </div>
 
-      {/* CLIENT PAGE */}
-
-      <div className="mt-6 rounded-2xl border-2 border-black bg-white/60 p-4">
-        <p className="text-xs font-black tracking-[0.15em]">
-          CLIENT PROJECT PAGE
-        </p>
-
-        <p className="mt-2 break-all text-xs text-black/60">
-          {clientProjectPath}
-        </p>
-
-        <button
-          type="button"
-          onClick={copyClientLink}
-          className="mt-3 rounded-xl border-2 border-black bg-white px-4 py-2 text-xs font-black"
-        >
-          顧客ページURLをコピー
-        </button>
-      </div>
 
       {message && (
         <div className="mt-5 rounded-xl border-2 border-black bg-white p-3 text-sm font-bold">

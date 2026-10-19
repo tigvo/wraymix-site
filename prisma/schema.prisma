@@ -44,9 +44,16 @@ model Booking {
   // お急ぎ対応
   isExpress    Boolean  @default(false)
 
+  // ポートフォリオ掲載管理
+  // unknown / approved / denied
+  portfolioPermission String  @default("unknown")
+  portfolioQueued     Boolean @default(false)
+
   createdAt    DateTime @default(now())
 
   allocations WorkAllocation[]
+
+  @@index([portfolioQueued, portfolioPermission])
 }
 
 model ScheduleDay {

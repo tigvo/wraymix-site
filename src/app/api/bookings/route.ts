@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 
-import { buildAllocationPlan, shiftDate } from "@/lib/allocation";
+import { shiftDate } from "@/lib/allocation";
 
 import {
   bookingConsumesCapacity,
@@ -12,13 +12,13 @@ import {
   type ServiceType,
 } from "@/lib/booking";
 
-import { getTodayInJapan, getTomorrowInJapan } from "@/lib/japanDate";
+import { getTomorrowInJapan } from "@/lib/japanDate";
 
 import { requireAdmin } from "@/lib/adminAuth";
 
-import { createClientBookingPath } from "@/lib/clientBookingAccess";
-
 import { sendBookingNotification } from "@/lib/bookingNotification";
+
+import { checkBookingRateLimit } from "@/lib/bookingRateLimit";
 
 const allowedStatuses = [
   "pending_review",
@@ -35,27 +35,15 @@ async function createAllocationPlan(
   deliveryDate: string,
   requiredPoints: number,
 ) {
-  const today = getTodayInJapan();
   const tomorrow = getTomorrowInJapan();
 
   if (deliveryDate < tomorrow) {
     throw new Error("SAME_DAY_NOT_ALLOWED");
   }
 
-  const candidateStart = shiftDate(deliveryDate, -7);
-
-  const startDate = candidateStart < today ? today : candidateStart;
-
-  const scheduleDays = await tx.scheduleDay.findMany({
+  const deliveryDay = await tx.scheduleDay.findUnique({
     where: {
-      date: {
-        gte: startDate,
-        lte: deliveryDate,
-      },
-    },
-
-    orderBy: {
-      date: "desc",
+      date: deliveryDate,
     },
 
     include: {
@@ -71,41 +59,67 @@ async function createAllocationPlan(
     },
   });
 
-  const deliveryDay = scheduleDays.find((day) => day.date === deliveryDate);
-
   if (!deliveryDay || deliveryDay.capacity <= 0) {
     throw new Error("DATE_NOT_AVAILABLE");
   }
 
-  const workDays = scheduleDays.map((day) => ({
-    date: day.date,
-    capacity: day.capacity,
+  const used = deliveryDay.allocations.reduce((total, allocation) => {
+    if (!bookingConsumesCapacity(allocation.booking.status)) {
+      return total;
+    }
 
-    used: day.allocations.reduce((total, allocation) => {
-      if (!bookingConsumesCapacity(allocation.booking.status)) {
-        return total;
-      }
+    if (bookingId !== null && allocation.bookingId === bookingId) {
+      return total;
+    }
 
-      if (bookingId !== null && allocation.bookingId === bookingId) {
-        return total;
-      }
+    return total + allocation.points;
+  }, 0);
 
-      return total + allocation.points;
-    }, 0),
-  }));
+  const free = Math.max(deliveryDay.capacity - used, 0);
 
-  const plan = buildAllocationPlan(workDays, requiredPoints);
-
-  if (!plan) {
+  if (free < requiredPoints) {
     throw new Error("BOOKING_CAPACITY_EXCEEDED");
   }
 
-  return plan;
+  return [
+    {
+      date: deliveryDate,
+      points: requiredPoints,
+    },
+  ];
 }
 
 export async function POST(request: Request) {
   try {
+    const rateLimit = checkBookingRateLimit(request);
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            "短時間に複数回の送信がありました。少し時間を空けてからお試しください。",
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(rateLimit.retryAfterSeconds),
+          },
+        },
+      );
+    }
+
     const body = await request.json();
+
+    const honeypot =
+      typeof body.contactWebsite === "string"
+        ? body.contactWebsite.trim()
+        : "";
+
+    if (honeypot) {
+      return NextResponse.json({
+        success: true,
+      });
+    }
 
     const paymentMethod =
       typeof body.paymentMethod === "string" ? body.paymentMethod : "";
@@ -311,7 +325,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       booking,
-      clientProjectPath: createClientBookingPath(booking.id),
     });
   } catch (error) {
     console.error(error);
@@ -534,6 +547,44 @@ export async function PATCH(request: Request) {
       );
     }
 
+    const nextPortfolioPermission = Object.prototype.hasOwnProperty.call(
+      body,
+      "portfolioPermission",
+    )
+      ? String(body.portfolioPermission)
+      : current.portfolioPermission;
+
+    const allowedPortfolioPermissions = ["unknown", "approved", "denied"];
+
+    if (!allowedPortfolioPermissions.includes(nextPortfolioPermission)) {
+      return NextResponse.json(
+        {
+          error: "ポートフォリオ掲載許可の状態が不正です。",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    const nextPortfolioQueued = Object.prototype.hasOwnProperty.call(
+      body,
+      "portfolioQueued",
+    )
+      ? Boolean(body.portfolioQueued)
+      : current.portfolioQueued;
+
+    if (nextPortfolioQueued && nextPortfolioPermission !== "approved") {
+      return NextResponse.json(
+        {
+          error: "掲載OKの案件だけポートフォリオ掲載待ちに追加できます。",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
     const nextDeliveryDate = Object.prototype.hasOwnProperty.call(
       body,
       "deliveryDate",
@@ -626,6 +677,11 @@ export async function PATCH(request: Request) {
           singerCount: nextSingerCount,
 
           chorusCount: nextChorusCount,
+
+          portfolioPermission: nextPortfolioPermission,
+
+          portfolioQueued:
+            nextPortfolioPermission === "approved" ? nextPortfolioQueued : false,
         },
 
         include: {

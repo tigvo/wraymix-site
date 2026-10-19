@@ -13,7 +13,6 @@ type BookingCommunicationPanelProps = {
   planLabel: string | null;
   quotedPrice: number | null;
   deliveryDate: string;
-  clientProjectUrl: string;
   workGmailAddress: string;
   paymentMethod: string | null;
 };
@@ -60,7 +59,6 @@ export default function BookingCommunicationPanel({
   planLabel,
   quotedPrice,
   deliveryDate,
-  clientProjectUrl,
   workGmailAddress,
   paymentMethod,
 }: BookingCommunicationPanelProps) {
@@ -79,7 +77,7 @@ export default function BookingCommunicationPanel({
     return `【WRAYMIX】${songTitle} お見積もりのご確認`;
   }
 
-  function buildReplyText(url: string, type: ReplyTemplateType) {
+  function buildReplyText(type: ReplyTemplateType) {
     const plan = planLabel || getServiceLabel(serviceType);
 
     const price = quotedPrice != null ? formatYen(quotedPrice) : "未確定";
@@ -106,8 +104,6 @@ export default function BookingCommunicationPanel({
 
 こちらの内容で進行いたします！
 
-進行状況・料金・初稿予定日は、以下のご依頼専用ページからいつでもご確認いただけます。
-${url}
 
 ご不明点や追加のご希望などありましたら、お気軽にご連絡ください。
 よろしくお願いいたします！`;
@@ -128,8 +124,6 @@ ${url}
 上記の内容・料金でよろしければ、このまま進行いたします。
 問題なければ、その旨ご返信いただけますと幸いです！
 
-進行状況・料金・初稿予定日は、以下のご依頼専用ページからいつでもご確認いただけます。
-${url}
 
 ご不明点や追加のご希望などありましたら、お気軽にご連絡ください。
 よろしくお願いいたします！`;
@@ -138,7 +132,7 @@ ${url}
   const [subject, setSubject] = useState(() => getSubject("estimate"));
 
   const [replyText, setReplyText] = useState(() =>
-    buildReplyText(clientProjectUrl, "estimate"),
+    buildReplyText("estimate"),
   );
 
   const [notice, setNotice] = useState("");
@@ -148,7 +142,7 @@ ${url}
 
     setSubject(getSubject(type));
 
-    setReplyText(buildReplyText(clientProjectUrl, type));
+    setReplyText(buildReplyText(type));
 
     setNotice(
       type === "estimate"
@@ -160,7 +154,7 @@ ${url}
   function regenerateTemplate() {
     setSubject(getSubject(templateType));
 
-    setReplyText(buildReplyText(clientProjectUrl, templateType));
+    setReplyText(buildReplyText(templateType));
 
     setNotice("ひな型を再生成しました。");
   }
@@ -295,24 +289,6 @@ ${url}
             <strong>送信用Gmail：</strong> {workGmailAddress}
           </div>
         )}
-      </div>
-
-      <div className="mt-4 rounded-2xl border-2 border-black bg-[#bfe3d1] p-5">
-        <p className="text-xs font-black tracking-[0.15em]">PROJECT PAGE</p>
-
-        <p className="mt-2 break-all text-xs leading-5 text-black/60">
-          {clientProjectUrl}
-        </p>
-
-        <button
-          type="button"
-          onClick={() =>
-            copyText(clientProjectUrl, "案件ページURLをコピーしました。")
-          }
-          className="mt-3 rounded-xl border-2 border-black bg-white px-4 py-2 text-xs font-black"
-        >
-          URLをコピー
-        </button>
       </div>
 
       <div className="mt-4 rounded-2xl border-2 border-black bg-white p-5">
