@@ -99,6 +99,7 @@ export async function GET(request: Request) {
           ? Math.round(basePrice * 1.5)
           : basePrice;
 
+        // 実際にこの納期で予約できるかは、従来どおり最大7日分を合算して判定
         const candidateStart = shiftDate(deliveryDay.date, -7);
 
         const startDate = candidateStart < today ? today : candidateStart;
@@ -109,16 +110,20 @@ export async function GET(request: Request) {
 
         const plan = buildAllocationPlan(usableDays, requiredCost);
 
-        const totalFree = usableDays.reduce(
-          (total, day) => total + Math.max(day.capacity - day.used, 0),
-          0,
+        // カレンダー表示の AVAILABLE / FEW / FULL は当日分の残りcapacityだけで判定
+        const deliveryWorkDay = workDays.find(
+          (day) => day.date === deliveryDay.date,
         );
+
+        const remaining = deliveryWorkDay
+          ? Math.max(deliveryWorkDay.capacity - deliveryWorkDay.used, 0)
+          : 0;
 
         let status: "available" | "few" | "full";
 
-        if (!plan) {
+        if (remaining < requiredCost) {
           status = "full";
-        } else if (totalFree - requiredCost < 5) {
+        } else if (remaining - requiredCost < 5) {
           status = "few";
         } else {
           status = "available";
@@ -127,13 +132,14 @@ export async function GET(request: Request) {
         return {
           date: deliveryDay.date,
           status,
+          canBook: Boolean(plan),
           isExpress,
           estimatedPrice,
         };
       });
 
     const earliestAvailableDate =
-      availability.find((day) => day.status !== "full")?.date ?? null;
+      availability.find((day) => day.canBook)?.date ?? null;
 
     return NextResponse.json({
       availability,
