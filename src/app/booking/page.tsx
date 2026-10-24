@@ -13,6 +13,8 @@ type AvailabilityDay = {
 
   status: "available" | "few" | "full";
 
+  canBook: boolean;
+
   isExpress: boolean;
 
   estimatedPrice: number | null;
@@ -541,7 +543,7 @@ export default function BookingPage() {
                   {monthDates.map((date) => {
                     const day = availabilityMap.get(date);
 
-                    const selectable = Boolean(day && day.status !== "full");
+                    const selectable = Boolean(day?.canBook);
 
                     const selected = selectedDate === date;
 
