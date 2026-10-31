@@ -60,6 +60,12 @@ export default async function AdminBookingsPage() {
 
             <p className="mt-2 text-sm text-black/55">ご依頼一覧</p>
           </div>
+          <Link
+            href="/admin/bookings/new"
+            className="rounded-xl border-2 border-black bg-[#bfe3d1] px-5 py-3 text-sm font-black shadow-[3px_3px_0_#202020] transition hover:-translate-y-0.5"
+          >
+            + 予約を追加
+          </Link>
         </header>
 
         <div className="mt-8 space-y-3">
