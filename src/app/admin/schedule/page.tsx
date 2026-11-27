@@ -53,7 +53,7 @@ function referenceUrls(booking: Booking) {
   return [...new Set(text.split("\n").filter((line) => /参考|reference|ref\s*:/i.test(line)).flatMap((line) => urls(line)))];
 }
 function safeFolderPart(value: string) {
-  return value.replace(/[\\/:*?"<>|\\u0000-\\u001f]/g, " ").replace(/[. ]+$/g, "").trim().replace(/\\s+/g, " ") || "未設定";
+  return value.replace(/[\\/:*?"<>|\u0000-\u001f]/g, " ").replace(/[. ]+$/g, "").trim().replace(/\s+/g, " ") || "未設定";
 }
 function bookingFolderName(booking: Booking) {
   const created = new Date(booking.createdAt);
