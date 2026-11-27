@@ -99,7 +99,6 @@ function BookingPanel({ booking, onRefresh }: { booking: Booking; onRefresh: () 
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: booking.id, status, adminNote: memo.trim() }),
       });
-      setReference("");
       await onRefresh();
       setFeedback("保存しました");
     } catch (error) {
@@ -316,7 +315,7 @@ export default function ScheduleAdminPage() {
                   const selected = selectedDates.includes(date);
                   const isToday = date === today;
                   return (
-                    <div key={date} className={`min-w-0 rounded-lg border p-1.5 ${view === "week" ? "min-h-80" : "min-h-30"} ${selected ? "border-black bg-[#eee9ff] ring-1 ring-black" : "border-black/15 bg-[#fffdf8]"} ${isToday ? "outline outline-2 outline-[#b897eb]" : ""}`}>
+                    <div key={date} className={`min-w-0 rounded-lg border p-1.5 ${view === "week" ? "min-h-64" : "min-h-20"} ${selected ? "border-black bg-[#eee9ff] ring-1 ring-black" : "border-black/15 bg-[#fffdf8]"} ${isToday ? "outline outline-2 outline-[#b897eb]" : ""}`}>
                       <button onClick={(e) => selectDay(date, e.shiftKey)} className="flex w-full items-center justify-between gap-1 text-left" title="クリックで日付選択、Shift+クリックで範囲選択">
                         <strong className="text-sm">{Number(date.slice(-2))}</strong>
                         <span className="text-[10px] font-bold text-black/55">{day ? `${day.used}/${day.capacity}pt` : "OFF"}</span>
@@ -326,10 +325,10 @@ export default function ScheduleAdminPage() {
                         {allocations.map((a) =>
                           <button key={a.id} onClick={() => { setSelectedDates([date]); setBookingId(a.booking.id); }}
                             title={`${a.booking.songTitle} / ${a.booking.name} / ${a.points}pt`}
-                            className={`block w-full truncate rounded px-1 py-1 text-left text-[10px] font-bold leading-tight hover:ring-1 hover:ring-black ${bookingId === a.booking.id ? "ring-2 ring-black" : ""} ${pillColor(a.booking.status)}`}>
+                            className={`block w-full truncate rounded px-1 py-0.5 text-left text-[10px] font-bold leading-tight hover:ring-1 hover:ring-black ${bookingId === a.booking.id ? "ring-2 ring-black" : ""} ${pillColor(a.booking.status)}`}>
                             {a.booking.songTitle}<span className="ml-1 opacity-60">{a.points}pt</span>
                           </button>)}
-                        {personal.map((e) => <button key={e.id} title={e.title} onClick={() => selectDay(date)} className="block w-full truncate rounded bg-[#eee] px-1 py-1 text-left text-[10px]">• {e.title}</button>)}
+                        {personal.map((e) => <button key={e.id} title={e.title} onClick={() => selectDay(date)} className="block w-full truncate rounded bg-[#eee] px-1 py-0.5 text-left text-[10px]">• {e.title}</button>)}
                       </div>
                     </div>
                   );
