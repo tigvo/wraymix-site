@@ -93,7 +93,7 @@ function BookingPanel({ booking, onRefresh }: { booking: Booking; onRefresh: () 
         try {
           const url = new URL(value);
           return url.protocol === "https:" &&
-            (url.hostname === "gigafile.nu" || url.hostname.endsWith(".gigafile.nu"));
+            (url.hostname === "gigafile.nu" || url.hostname.endsWith(".gigafile.nu") || url.hostname === "xgf.nu" || url.hostname.endsWith(".xgf.nu"));
         } catch { return false; }
       }),
   )];
@@ -169,7 +169,7 @@ function BookingPanel({ booking, onRefresh }: { booking: Booking; onRefresh: () 
             素材を取得 ↓
           </button>
         </div>
-        {gigafileLinks.length === 0 && <p className="mt-1 text-[11px] text-black/50">ギガファイル便のリンクが未登録です（素材URL・備考・管理メモを確認）</p>}
+        {gigafileLinks.length === 0 && <p className="mt-1 text-[11px] text-black/50">ギガファイル便（gigafile.nu / xgf.nu）のリンクが未登録です（素材URL・備考・管理メモを確認）</p>}
         <div className="mt-1 space-y-1">
           {material.map((url, i) =>
             <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="block truncate rounded-lg border border-black/15 bg-[#edf7f2] px-3 py-2 text-xs font-bold" title={url}>音源・素材 {i + 1} ↗ <span className="font-normal text-black/50">{url}</span></a>)}
