@@ -1,1284 +1,356 @@
 "use client";
 
 import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { useEffect, useMemo, useState } from "react";
-
-type BookingAllocation = {
-  date: string;
-  points: number;
-};
-
+type Allocation = { id: number; date: string; points: number; booking: Booking };
 type Booking = {
-  id: number;
-
-  name: string;
-  contact: string;
-  songTitle: string;
-
-  serviceType: string;
-  singerCount: number;
-  chorusCount: number;
-
-  requestNote: string | null;
-
-  costPoint: number;
-  deliveryDate: string;
-
-  status: string;
-
-  planLabel: string | null;
-
-  quotedPrice: number | null;
-
-  adminNote: string | null;
-
-  isExpress: boolean;
-
-  allocations: BookingAllocation[];
+  id: number; name: string; contact: string; songTitle: string;
+  serviceType: string; singerCount: number; chorusCount: number;
+  status: string; planLabel: string | null; quotedPrice: number | null;
+  deliveryDate: string; costPoint: number; isExpress: boolean;
+  materialLinks: string | null; requestNote: string | null; adminNote: string | null;
 };
-
-type WorkAllocation = {
-  id: number;
-  date: string;
-  points: number;
-  booking: Booking;
-};
-
-type ScheduleDay = {
-  id: number;
-  date: string;
-  capacity: number;
-  used: number;
-
-  allocations: WorkAllocation[];
-};
-
-type CalendarEvent = {
-  id: number;
-  date: string;
-  title: string;
-};
-
-const statusOptions = [
-  {
-    value: "pending_review",
-    label: "確認待ち",
-  },
-  {
-    value: "reserved",
-    label: "受付確定",
-  },
-  {
-    value: "first_draft",
-    label: "初稿提出",
-  },
-  {
-    value: "revision",
-    label: "修正中",
-  },
-  {
-    value: "delivered",
-    label: "納品済み",
-  },
-];
-
-function getStatusLabel(status: string) {
-  if (status === "cancelled") {
-    return "キャンセル";
-  }
-
-  return statusOptions.find((item) => item.value === status)?.label ?? status;
+type ScheduleDay = { id: number; date: string; capacity: number; used: number; allocations: Allocation[] };
+type CalendarEvent = { id: number; date: string; title: string };
+type View = "month" | "week";
+const statuses = [
+  ["pending_review", "確認待ち"], ["reserved", "受付確定"],
+  ["first_draft", "初稿提出"], ["revision", "修正中"],
+  ["delivered", "納品済み"], ["cancelled", "キャンセル"],
+] as const;
+const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
+const input = "w-full rounded-lg border border-black/30 bg-white px-3 py-2 text-sm outline-offset-2";
+const button = "rounded-lg border-2 border-black px-3 py-2 text-xs font-black transition hover:-translate-y-0.5";
+function dateString(date: Date) {
+  return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
 }
-
-function formatDate(year: number, month: number, day: number) {
-  return [
-    year,
-    String(month + 1).padStart(2, "0"),
-    String(day).padStart(2, "0"),
-  ].join("-");
+function parseDate(value: string) {
+  const [y, m, d] = value.split("-").map(Number);
+  return new Date(y, m - 1, d);
 }
-
-function parseDateString(value: string) {
-  const [year, month, day] = value.split("-").map(Number);
-
-  return new Date(year, month - 1, day);
+function addDays(value: string, amount: number) {
+  const d = parseDate(value);
+  d.setDate(d.getDate() + amount);
+  return dateString(d);
 }
-
-function dateToString(date: Date) {
-  return formatDate(date.getFullYear(), date.getMonth(), date.getDate());
+function weekStart(value: string) {
+  const date = parseDate(value);
+  date.setDate(date.getDate() - date.getDay());
+  return dateString(date);
 }
-
-function getMonthDays(year: number, month: number) {
-  const lastDay = new Date(year, month + 1, 0).getDate();
-
-  return Array.from(
-    {
-      length: lastDay,
-    },
-    (_, index) => formatDate(year, month, index + 1),
-  );
-}
-
-function getDateRange(start: string, end: string) {
+function range(start: string, end: string) {
   const [first, last] = [start, end].sort();
-
-  const startDate = parseDateString(first);
-
-  const endDate = parseDateString(last);
-
-  const result: string[] = [];
-
-  const current = new Date(startDate);
-
-  while (current <= endDate) {
-    result.push(dateToString(current));
-
-    current.setDate(current.getDate() + 1);
-  }
-
-  return result;
+  const dates: string[] = [];
+  for (let date = first; date <= last; date = addDays(date, 1)) dates.push(date);
+  return dates;
 }
-
-async function fetchSchedule(): Promise<ScheduleDay[]> {
-  const response = await fetch("/api/schedule");
-
-  if (!response.ok) {
-    throw new Error("schedule error");
-  }
-
+function urls(text: string | null) {
+  return [...new Set((text ?? "").match(/https?:\/\/[^\s<>「」]+/g) ?? [])].map((x) => x.replace(/[.,、。)）]+$/, ""));
+}
+function referenceUrls(booking: Booking) {
+  const text = [booking.requestNote, booking.adminNote].filter(Boolean).join("\n");
+  return [...new Set(text.split("\n").filter((line) => /参考|reference|ref\s*:/i.test(line)).flatMap((line) => urls(line)))];
+}
+function statusName(value: string) {
+  return statuses.find(([key]) => key === value)?.[1] ?? value;
+}
+function pillColor(status: string) {
+  if (status === "pending_review") return "bg-[#f5d48d]";
+  if (status === "reserved") return "bg-[#bfe3d1]";
+  if (status === "revision") return "bg-[#dcd4f5]";
+  return "bg-[#eee9e0]";
+}
+async function jsonFetch(url: string, options?: RequestInit) {
+  const response = await fetch(url, { cache: "no-store", ...options });
   const data = await response.json();
-
-  return data.days ?? [];
+  if (!response.ok) throw new Error(data.error ?? "通信に失敗しました");
+  return data;
 }
 
-async function fetchEvents(): Promise<CalendarEvent[]> {
-  const response = await fetch("/api/calendar-events");
-
-  if (!response.ok) {
-    throw new Error("events error");
-  }
-
-  const data = await response.json();
-
-  return data.events ?? [];
-}
-
-function BookingEditor({
-  booking,
-  onReload,
-  onClose,
-}: {
-  booking: Booking;
-
-  onReload: () => Promise<void>;
-
-  onClose: () => void;
-}) {
-  const [planLabel, setPlanLabel] = useState(booking.planLabel ?? "");
-
-  const [quotedPrice, setQuotedPrice] = useState(booking.quotedPrice ?? 0);
-
-  const [costPoint, setCostPoint] = useState(booking.costPoint);
-
-  const [deliveryDate, setDeliveryDate] = useState(booking.deliveryDate);
-
-  const [adminNote, setAdminNote] = useState(booking.adminNote ?? "");
-
-  const [isSaving, setIsSaving] = useState(false);
-
-  const [singerCount, setSingerCount] = useState(booking.singerCount);
-  const [chorusCount, setChorusCount] = useState(booking.chorusCount);
-
-  async function patchBooking(values: Record<string, unknown>) {
-    const response = await fetch("/api/bookings", {
-      method: "PATCH",
-
-      headers: {
-        "Content-Type": "application/json",
-      },
-
-      body: JSON.stringify({
-        id: booking.id,
-
-        ...values,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      alert(data.error ?? "案件の更新に失敗しました。");
-
-      return false;
-    }
-
-    await onReload();
-
-    return true;
-  }
-
+function BookingPanel({ booking, onRefresh }: { booking: Booking; onRefresh: () => Promise<void> }) {
+  const [status, setStatus] = useState(booking.status);
+  const [memo, setMemo] = useState(booking.adminNote ?? "");
+  const [reference, setReference] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState("");
+  useEffect(() => {
+    setStatus(booking.status);
+    setMemo(booking.adminNote ?? "");
+    setReference("");
+    setFeedback("");
+  }, [booking.id, booking.status, booking.adminNote]);
+  const material = urls(booking.materialLinks);
+  const references = referenceUrls(booking);
   async function save() {
-    setIsSaving(true);
-
-    try {
-      await patchBooking({
-        planLabel,
-        quotedPrice,
-        singerCount,
-        chorusCount,
-        costPoint,
-        deliveryDate,
-        adminNote,
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function changeStatus(status: string) {
-    await patchBooking({
-      status,
-    });
-  }
-
-  async function confirmBooking() {
-    const saved = await patchBooking({
-      planLabel,
-      quotedPrice,
-      costPoint,
-      deliveryDate,
-      adminNote,
-      status: "reserved",
-    });
-
-    if (saved) {
-      alert("受付確定しました。");
-    }
-  }
-
-  async function cancelBooking() {
-    const ok = window.confirm(
-      `${booking.name}さん「${booking.songTitle}」をキャンセルしますか？\n\n作業割当の履歴は残りますが、キャパ計算からは除外されます。`,
-    );
-
-    if (!ok) {
+    setSaving(true);
+    setFeedback("");
+    const newReferences = reference.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    if (newReferences.some((s) => { try { const u = new URL(s); return !["http:", "https:"].includes(u.protocol); } catch { return true; } })) {
+      setFeedback("参考音源はhttp(s)のURLを入力してください");
+      setSaving(false);
       return;
     }
-
-    const success = await patchBooking({
-      status: "cancelled",
-    });
-
-    if (success) {
-      onClose();
-    }
+    try {
+      const nextMemo = [memo.trim(), ...newReferences.map((url) => `参考音源: ${url}`)].filter(Boolean).join("\n");
+      await jsonFetch("/api/bookings", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: booking.id, status, adminNote: nextMemo }),
+      });
+      setReference("");
+      await onRefresh();
+      setFeedback("保存しました");
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "保存に失敗しました");
+    } finally { setSaving(false); }
   }
-
   return (
-    <div className="wray-event-editor">
-      <p className="wray-admin-label">BOOKING</p>
-
-      <h3
-        style={{
-          marginTop: 4,
-          fontSize: 26,
-          fontWeight: 900,
-        }}
-      >
-        {booking.songTitle}
-      </h3>
-
-      <Link
-        href={`/admin/bookings/${booking.id}`}
-        className="wray-calendar-primary"
-        style={{
-          display: "inline-block",
-          marginTop: 12,
-          textDecoration: "none",
-        }}
-      >
-        案件詳細を開く →
-      </Link>
-
-      <div
-        style={{
-          marginTop: 14,
-          lineHeight: 1.9,
-        }}
-      >
-        <div>
-          <strong>依頼者：</strong>
-          {booking.name}
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black tracking-widest text-black/45">BOOKING #{booking.id}</p>
+          <h2 className="mt-1 break-words text-xl font-black">{booking.songTitle}</h2>
+          <p className="text-sm text-black/65">{booking.name} ・ {booking.contact}</p>
         </div>
-
-        <div>
-          <strong>連絡先：</strong>
-          {booking.contact}
-        </div>
-
-        <div>
-          <strong>申請コース：</strong>
-          {booking.serviceType === "full" ? "フルコーラス" : "short"}
-        </div>
-
-        <div>
-          <strong>歌唱人数：</strong>
-          {booking.singerCount}人
-        </div>
-
-        <div>
-          <strong>コーラス：</strong>
-          {booking.chorusCount}本
-        </div>
-
-        {booking.isExpress && (
-          <div>
-            <strong>⚡ 即日依頼</strong>
-          </div>
-        )}
-
-        {booking.requestNote && (
-          <div
-            style={{
-              marginTop: 12,
-            }}
-          >
-            <strong>お客様備考</strong>
-
-            <div
-              style={{
-                marginTop: 4,
-                whiteSpace: "pre-wrap",
-              }}
-            >
-              {booking.requestNote}
-            </div>
-          </div>
-        )}
+        <Link href={`/admin/bookings/${booking.id}`} className={button + " shrink-0 bg-white"}>詳細 ↗</Link>
       </div>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 12,
-        }}
-      >
-        <label>
-          <strong>歌唱人数</strong>
-
-          <input
-            type="number"
-            min="1"
-            value={singerCount}
-            onChange={(event) => setSingerCount(Number(event.target.value))}
-            className="wray-calendar-input"
-            style={{ marginTop: 6 }}
-          />
-        </label>
-
-        <label>
-          <strong>コーラス・ハモリ本数</strong>
-
-          <input
-            type="number"
-            min="0"
-            value={chorusCount}
-            onChange={(event) => setChorusCount(Number(event.target.value))}
-            className="wray-calendar-input"
-            style={{ marginTop: 6 }}
-          />
-        </label>
+      <div className="grid grid-cols-3 gap-2 text-xs">
+        <div className="rounded-lg bg-[#f7f1df] p-2"><span className="block text-black/50">初稿日</span><b>{booking.deliveryDate.slice(5)}</b></div>
+        <div className="rounded-lg bg-[#f7f1df] p-2"><span className="block text-black/50">料金</span><b>{booking.quotedPrice === null ? "未確定" : `¥${booking.quotedPrice.toLocaleString()}`}</b></div>
+        <div className="rounded-lg bg-[#f7f1df] p-2"><span className="block text-black/50">作業量</span><b>{booking.costPoint}pt</b></div>
       </div>
-
-      <div
-        style={{
-          display: "grid",
-          gap: 16,
-          marginTop: 24,
-        }}
-      >
-        <label>
-          <strong>最終プラン名</strong>
-
-          <input
-            value={planLabel}
-            onChange={(event) => setPlanLabel(event.target.value)}
-            placeholder="例：short+ / 特殊プラン"
-            className="wray-calendar-input"
-            style={{
-              marginTop: 6,
-            }}
-          />
-        </label>
-
-        <label>
-          <strong>最終料金</strong>
-
-          <input
-            type="number"
-            min="0"
-            value={quotedPrice}
-            onChange={(event) => setQuotedPrice(Number(event.target.value))}
-            className="wray-calendar-input"
-            style={{
-              marginTop: 6,
-            }}
-          />
-        </label>
-
-        <label>
-          <strong>作業量</strong>
-
-          <input
-            type="number"
-            min="1"
-            value={costPoint}
-            onChange={(event) => setCostPoint(Number(event.target.value))}
-            className="wray-calendar-input"
-            style={{
-              marginTop: 6,
-            }}
-          />
-
-          <small>変更すると作業割当を自動で組み直します。</small>
-        </label>
-
-        <label>
-          <strong>納期</strong>
-
-          <input
-            type="date"
-            value={deliveryDate}
-            onChange={(event) => setDeliveryDate(event.target.value)}
-            className="wray-calendar-input"
-            style={{
-              marginTop: 6,
-            }}
-          />
-        </label>
-
-        <label>
-          <strong>管理メモ</strong>
-
-          <textarea
-            value={adminNote}
-            onChange={(event) => setAdminNote(event.target.value)}
-            rows={4}
-            className="wray-calendar-input"
-            style={{
-              marginTop: 6,
-              resize: "vertical",
-            }}
-            placeholder="例：shortより尺長め、コーラス2本分で計算"
-          />
-        </label>
-      </div>
-
-      <button
-        type="button"
-        disabled={isSaving}
-        onClick={save}
-        className="wray-calendar-primary"
-        style={{
-          marginTop: 18,
-        }}
-      >
-        {isSaving ? "保存中..." : "内容を保存"}
-      </button>
-
-      <div
-        style={{
-          marginTop: 26,
-        }}
-      >
-        <strong>STATUS</strong>
-
-        <select
-          value={booking.status}
-          onChange={(event) => changeStatus(event.target.value)}
-          className="wray-calendar-input"
-          style={{
-            marginTop: 6,
-          }}
-        >
-          {statusOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
+      <section className="rounded-xl border-2 border-black bg-[#f5d48d] p-3">
+        <label className="block text-xs font-black">ステータス変更</label>
+        <select className={input + " mt-2"} value={status} disabled={booking.status === "cancelled"}
+          onChange={(event) => setStatus(event.target.value)}>
+          {statuses.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
         </select>
-      </div>
-
-      {booking.status === "pending_review" && (
-        <button
-          type="button"
-          onClick={confirmBooking}
-          className="wray-calendar-primary"
-          style={{
-            marginTop: 14,
-            width: "100%",
-          }}
-        >
-          この内容で受付確定
-        </button>
-      )}
-
-      <div
-        style={{
-          marginTop: 24,
-        }}
-      >
-        <strong>作業割当</strong>
-
-        {booking.allocations.map((allocation) => (
-          <div key={allocation.date} className="wray-event-item">
-            <span>{allocation.date}</span>
-
-            <strong>
-              {allocation.points}
-              pt
-            </strong>
-          </div>
-        ))}
-      </div>
-
-      <button
-        type="button"
-        onClick={cancelBooking}
-        style={{
-          marginTop: 22,
-          border: "2px solid #202020",
-          borderRadius: 10,
-          background: "#fff",
-          padding: "10px 14px",
-          fontWeight: 900,
-        }}
-      >
-        案件をキャンセル
+        {status === "cancelled" && booking.status !== "cancelled" &&
+          <p className="mt-1 text-xs text-red-700">キャンセルすると作業枠から外れます。復活はできません。</p>}
+      </section>
+      <section>
+        <h3 className="text-sm font-black">素材・音源リンク</h3>
+        <div className="mt-2 space-y-1">
+          {material.map((url, i) =>
+            <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="block truncate rounded-lg border border-black/15 bg-[#edf7f2] px-3 py-2 text-xs font-bold" title={url}>音源・素材 {i + 1} ↗ <span className="font-normal text-black/50">{url}</span></a>)}
+          {material.length === 0 && <p className="text-xs text-black/45">素材リンク未登録</p>}
+        </div>
+      </section>
+      <section>
+        <h3 className="text-sm font-black">参考音源リンク</h3>
+        <div className="mt-2 space-y-1">
+          {references.map((url, i) =>
+            <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="block truncate rounded-lg border border-black/15 bg-[#f1edff] px-3 py-2 text-xs font-bold" title={url}>参考音源 {i + 1} ↗ <span className="font-normal text-black/50">{url}</span></a>)}
+          {references.length === 0 && <p className="text-xs text-black/45">参考音源リンク未登録</p>}
+        </div>
+        <textarea rows={2} className={input + " mt-2"} placeholder="参考音源URLを追加（1行に1件）" value={reference} onChange={(e) => setReference(e.target.value)} />
+      </section>
+      <section>
+        <label className="text-sm font-black">管理メモ</label>
+        <textarea rows={3} className={input + " mt-2"} value={memo} onChange={(e) => setMemo(e.target.value)} />
+        {booking.requestNote && <p className="mt-2 whitespace-pre-wrap rounded-lg bg-[#f7f1df] p-2 text-xs"><b>お客様備考</b>\n{booking.requestNote}</p>}
+      </section>
+      <button disabled={saving || booking.status === "cancelled"} onClick={save} className={button + " w-full bg-[#bfe3d1] disabled:opacity-50"}>
+        {saving ? "保存中…" : "ステータス・メモ・参考音源を保存"}
       </button>
+      {feedback && <p role="status" className="text-xs font-bold">{feedback}</p>}
+      <p className="text-xs text-black/45">プラン・料金・素材URL・納期の編集は「詳細」から行えます。</p>
     </div>
   );
 }
 
 export default function ScheduleAdminPage() {
-  const today = new Date();
-
-  const todayString = formatDate(
-    today.getFullYear(),
-    today.getMonth(),
-    today.getDate(),
-  );
-
-  const [year, setYear] = useState(today.getFullYear());
-
-  const [month, setMonth] = useState(today.getMonth());
-
+  const [today] = useState(() => dateString(new Date()));
+  const [anchor, setAnchor] = useState(today);
+  const [view, setView] = useState<View>("month");
   const [days, setDays] = useState<ScheduleDay[]>([]);
-
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-
-  const [selectedDates, setSelectedDates] = useState<string[]>([]);
-
-  const [selectedBookingId, setSelectedBookingId] = useState<number | null>(
-    null,
-  );
-
-  const [dragStart, setDragStart] = useState<string | null>(null);
-
-  const [isDragging, setIsDragging] = useState(false);
-
+  const [selectedDates, setSelectedDates] = useState<string[]>([today]);
+  const [bookingId, setBookingId] = useState<number | null>(null);
   const [capacity, setCapacity] = useState(30);
-
   const [eventTitle, setEventTitle] = useState("");
-
   const [editingEventId, setEditingEventId] = useState<number | null>(null);
-
   const [editingTitle, setEditingTitle] = useState("");
-
-  async function reloadSchedule() {
-    setDays(await fetchSchedule());
-  }
-
-  useEffect(() => {
-    let cancelled = false;
-
-    Promise.all([fetchSchedule(), fetchEvents()])
-      .then(([fetchedDays, fetchedEvents]) => {
-        if (cancelled) {
-          return;
-        }
-
-        setDays(fetchedDays);
-
-        setEvents(fetchedEvents);
-      })
-      .catch(console.error);
-
-    return () => {
-      cancelled = true;
-    };
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const refresh = useCallback(async () => {
+    const [schedule, bookingList, eventList] = await Promise.all([
+      jsonFetch("/api/schedule"), jsonFetch("/api/bookings"), jsonFetch("/api/calendar-events"),
+    ]);
+    setDays(schedule.days ?? []);
+    setBookings(bookingList.bookings ?? []);
+    setEvents(eventList.events ?? []);
   }, []);
+  useEffect(() => {
+    refresh().catch((e) => setMessage(e instanceof Error ? e.message : "読み込みに失敗しました"))
+      .finally(() => setLoading(false));
+  }, [refresh]);
 
-  const monthDays = useMemo(() => getMonthDays(year, month), [year, month]);
-
-  const firstWeekday = new Date(year, month, 1).getDay();
-
-  const scheduleMap = useMemo(
-    () => new Map(days.map((day) => [day.date, day])),
-    [days],
-  );
-
-  const eventsMap = useMemo(() => {
+  const scheduleMap = useMemo(() => new Map(days.map((d) => [d.date, d])), [days]);
+  const eventMap = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
-
-    for (const event of events) {
-      const values = map.get(event.date) ?? [];
-
-      values.push(event);
-
-      map.set(event.date, values);
-    }
-
+    events.forEach((e) => map.set(e.date, [...(map.get(e.date) ?? []), e]));
     return map;
   }, [events]);
-
-  const bookingMap = useMemo(() => {
-    const map = new Map<number, Booking>();
-
-    for (const day of days) {
-      for (const allocation of day.allocations) {
-        map.set(allocation.booking.id, allocation.booking);
-      }
+  const selectedBooking = bookings.find((b) => b.id === bookingId) ?? null;
+  const visibleDates = useMemo(() => {
+    if (view === "week") return Array.from({ length: 7 }, (_, i) => addDays(weekStart(anchor), i));
+    const d = parseDate(anchor);
+    const first = dateString(new Date(d.getFullYear(), d.getMonth(), 1));
+    const last = dateString(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+    return range(first, last);
+  }, [view, anchor]);
+  const offset = view === "month" ? parseDate(visibleDates[0]).getDay() : 0;
+  const label = view === "month"
+    ? `${parseDate(anchor).getFullYear()}年 ${parseDate(anchor).getMonth() + 1}月`
+    : `${visibleDates[0].slice(5).replace("-", "/")} – ${visibleDates[6].slice(5).replace("-", "/")}`;
+  const selectedDay = selectedDates.length === 1 ? scheduleMap.get(selectedDates[0]) : undefined;
+  const todayWork = scheduleMap.get(today);
+  function navigate(amount: number) {
+    if (view === "week") setAnchor(addDays(anchor, amount * 7));
+    else {
+      const d = parseDate(anchor); d.setDate(1); d.setMonth(d.getMonth() + amount); setAnchor(dateString(d));
     }
-
-    return map;
-  }, [days]);
-
-  const selectedBooking = selectedBookingId
-    ? (bookingMap.get(selectedBookingId) ?? null)
-    : null;
-
-  const selectedDay =
-    selectedDates.length === 1 ? scheduleMap.get(selectedDates[0]) : undefined;
-
-  const todayDay = scheduleMap.get(todayString);
-
-  function clearEditing() {
-    setEditingEventId(null);
-
-    setEditingTitle("");
+    setSelectedDates([]);
+    setBookingId(null);
   }
-
-  function selectDate(date: string) {
-    setIsDragging(true);
-
-    setDragStart(date);
-
-    setSelectedDates([date]);
-
-    setSelectedBookingId(null);
-
-    clearEditing();
+  function selectDay(date: string, shift = false) {
+    setSelectedDates((prev) => shift && prev.length ? range(prev[0], date) : [date]);
+    setBookingId(null);
   }
-
-  function pointerEnter(date: string) {
-    if (!isDragging || !dragStart) {
-      return;
-    }
-
-    setSelectedDates(getDateRange(dragStart, date));
-
-    setSelectedBookingId(null);
+  async function updateCapacity(value: number) {
+    if (!selectedDates.length) return;
+    setMessage("");
+    try {
+      await jsonFetch("/api/schedule", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dates: selectedDates, capacity: value }),
+      });
+      await refresh();
+      setMessage("キャパを保存しました");
+    } catch (e) { setMessage(e instanceof Error ? e.message : "保存失敗"); }
   }
-
-  function pointerUp() {
-    setIsDragging(false);
-
-    setDragStart(null);
-  }
-
-  async function updateSchedule(values: Record<string, unknown>) {
-    if (selectedDates.length === 0) {
-      return;
-    }
-
-    const response = await fetch("/api/schedule", {
-      method: "PUT",
-
-      headers: {
-        "Content-Type": "application/json",
-      },
-
-      body: JSON.stringify({
-        dates: selectedDates,
-
-        ...values,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      alert(data.error ?? "更新失敗");
-
-      return;
-    }
-
-    await reloadSchedule();
-  }
-
-  async function addEvent() {
-    if (selectedDates.length !== 1 || !eventTitle.trim()) {
-      return;
-    }
-
-    const response = await fetch("/api/calendar-events", {
-      method: "POST",
-
-      headers: {
-        "Content-Type": "application/json",
-      },
-
-      body: JSON.stringify({
-        date: selectedDates[0],
-
-        title: eventTitle.trim(),
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      return;
-    }
-
-    setEvents((current) => [...current, data.event]);
-
-    setEventTitle("");
-  }
-
-  async function updateEvent() {
-    if (editingEventId === null || !editingTitle.trim()) {
-      return;
-    }
-
-    const response = await fetch("/api/calendar-events", {
-      method: "PATCH",
-
-      headers: {
-        "Content-Type": "application/json",
-      },
-
-      body: JSON.stringify({
-        id: editingEventId,
-
-        title: editingTitle.trim(),
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      return;
-    }
-
-    setEvents((current) =>
-      current.map((event) =>
-        event.id === editingEventId ? data.event : event,
-      ),
-    );
-
-    clearEditing();
-  }
-
-  async function deleteEvent(id: number) {
-    await fetch("/api/calendar-events", {
-      method: "DELETE",
-
-      headers: {
-        "Content-Type": "application/json",
-      },
-
-      body: JSON.stringify({
-        id,
-      }),
-    });
-
-    setEvents((current) => current.filter((event) => event.id !== id));
+  async function postEvent(method: "POST" | "PATCH" | "DELETE", body: object) {
+    try {
+      await jsonFetch("/api/calendar-events", {
+        method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      });
+      await refresh();
+      setEventTitle(""); setEditingEventId(null); setEditingTitle("");
+    } catch (e) { setMessage(e instanceof Error ? e.message : "予定を更新できませんでした"); }
   }
 
   return (
-    <main
-      className="wray-calendar-page"
-      onPointerUp={pointerUp}
-      onPointerLeave={pointerUp}
-    >
-      <div className="wray-calendar-container">
-        <header>
-          <p className="wray-admin-label">WRAYMIX ADMIN</p>
-
-          <h1 className="wray-admin-title">SCHEDULE</h1>
+    <main className="min-h-screen bg-[#f7f1df] px-5 py-5 text-[#202020]">
+      <div className="mx-auto max-w-[1900px]">
+        <header className="mb-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-black tracking-[.18em]">WRAYMIX ADMIN</p>
+            <h1 className="text-3xl font-black tracking-tight">SCHEDULE</h1>
+          </div>
+          <Link href="/admin/bookings/new" className={button + " bg-[#bfe3d1] px-5 py-3"}>＋ 予約を追加</Link>
         </header>
-
-        <section
-          className="wray-calendar-card"
-          style={{
-            background: "#bfe3d1",
-          }}
-        >
-          <p className="wray-admin-label">TODAY&apos;S WORK</p>
-
-          <h2
-            style={{
-              fontSize: 26,
-              fontWeight: 900,
-            }}
-          >
-            今日の作業
-          </h2>
-
-          {(todayDay?.allocations ?? []).length === 0 ? (
-            <p
-              style={{
-                marginTop: 12,
-              }}
-            >
-              今日のMIX作業はありません。
-            </p>
-          ) : (
-            todayDay?.allocations.map((allocation) => (
-              <button
-                key={allocation.id}
-                type="button"
-                className="wray-event-item"
-                style={{
-                  width: "100%",
-                  textAlign: "left",
-                }}
-                onClick={() => {
-                  setSelectedDates([todayString]);
-
-                  setSelectedBookingId(allocation.booking.id);
-                }}
-              >
-                <span>
-                  <strong>{allocation.booking.songTitle}</strong>
-
-                  {" / "}
-
-                  {allocation.booking.name}
-
-                  {" / "}
-
-                  {getStatusLabel(allocation.booking.status)}
-                </span>
-
-                <strong>
-                  {allocation.points}
-                  pt
-                </strong>
-              </button>
-            ))
-          )}
-
-          <p
-            style={{
-              marginTop: 14,
-              fontWeight: 900,
-            }}
-          >
-            {todayDay?.used ?? 0}
-            {" / "}
-            {todayDay?.capacity ?? 0}
-            pt
-          </p>
-        </section>
-
-        <section className="wray-calendar-card">
-          <div className="wray-calendar-month-header">
-            <button
-              type="button"
-              className="wray-calendar-arrow"
-              onClick={() => {
-                if (month === 0) {
-                  setYear(year - 1);
-                  setMonth(11);
-                } else {
-                  setMonth(month - 1);
-                }
-
-                setSelectedDates([]);
-              }}
-            >
-              ←
-            </button>
-
-            <div className="wray-calendar-month">
-              <h2>
-                {year}年 {month + 1}月
-              </h2>
-
-              <button
-                className="wray-calendar-today-button"
-                onClick={() => {
-                  const now = new Date();
-
-                  setYear(now.getFullYear());
-
-                  setMonth(now.getMonth());
-
-                  setSelectedDates([todayString]);
-                }}
-              >
-                TODAY
-              </button>
-            </div>
-
-            <button
-              type="button"
-              className="wray-calendar-arrow"
-              onClick={() => {
-                if (month === 11) {
-                  setYear(year + 1);
-                  setMonth(0);
-                } else {
-                  setMonth(month + 1);
-                }
-
-                setSelectedDates([]);
-              }}
-            >
-              →
-            </button>
-          </div>
-
-          <div className="wray-calendar-weekdays">
-            <div>SUN</div>
-            <div>MON</div>
-            <div>TUE</div>
-            <div>WED</div>
-            <div>THU</div>
-            <div>FRI</div>
-            <div>SAT</div>
-          </div>
-
-          <div className="wray-calendar-grid">
-            {Array.from({
-              length: firstWeekday,
-            }).map((_, index) => (
-              <div
-                key={index}
-                className="wray-calendar-day"
-                style={{
-                  visibility: "hidden",
-                }}
-              />
-            ))}
-
-            {monthDays.map((date) => {
-              const day = scheduleMap.get(date);
-
-              const selected = selectedDates.includes(date);
-
-              const dateEvents = eventsMap.get(date) ?? [];
-
-              const percentage =
-                day && day.capacity > 0
-                  ? Math.min((day.used / day.capacity) * 100, 100)
-                  : 0;
-
-              return (
-                <button
-                  key={date}
-                  type="button"
-                  className={[
-                    "wray-calendar-day",
-
-                    selected ? "wray-calendar-day-selected" : "",
-
-                    date === todayString ? "wray-calendar-day-today" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  onPointerDown={() => selectDate(date)}
-                  onPointerEnter={() => pointerEnter(date)}
-                >
-                  <span className="wray-calendar-date-number">
-                    {Number(date.slice(-2))}
-                  </span>
-
-                  {day && day.capacity > 0 && (
-                    <>
-                      <div className="wray-calendar-capacity">
-                        {day.used} / {day.capacity}pt
-                      </div>
-
-                      <div className="wray-calendar-bar">
-                        <div
-                          className="wray-calendar-bar-inner"
-                          style={{
-                            width: `${percentage}%`,
-                          }}
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  {(day?.allocations ?? []).slice(0, 2).map((allocation) => (
-                    <div
-                      key={allocation.id}
-                      className="wray-calendar-event"
-                      style={{
-                        marginTop: 4,
-
-                        background:
-                          allocation.booking.status === "pending_review"
-                            ? "#f5d48d"
-                            : "#ffffff",
-                      }}
-                    >
-                      {allocation.booking.status === "pending_review"
-                        ? "確認待ち "
-                        : ""}
-                      {allocation.booking.songTitle} {allocation.points}
-                      pt
-                    </div>
-                  ))}
-
-                  {dateEvents.slice(0, 2).map((event) => (
-                    <div key={event.id} className="wray-calendar-event">
-                      {event.title}
-                    </div>
-                  ))}
-                  {dateEvents.length > 2 && (
-                    <div className="wray-calendar-more">
-                      +{dateEvents.length - 2}
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        <section className="wray-calendar-editor">
-          {selectedDates.length === 0 ? (
-            <h2 className="wray-calendar-editor-title">SELECT DATE</h2>
-          ) : (
-            <>
-              <p className="wray-admin-label">SELECTED</p>
-
-              <h2 className="wray-calendar-editor-title">
-                {selectedDates.length}
-                日選択中
-              </h2>
-
-              <div
-                style={{
-                  marginTop: 24,
-                }}
-              >
-                <p className="wray-admin-label">CAPACITY</p>
-
-                <div className="wray-calendar-preset-grid">
-                  {[0, 10, 20, 30].map((value) => (
-                    <button
-                      key={value}
-                      className="wray-calendar-preset"
-                      onClick={() =>
-                        updateSchedule({
-                          capacity: value,
-                        })
-                      }
-                    >
-                      {value === 0 ? "OFF" : `${value}pt`}
-                    </button>
-                  ))}
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    marginTop: 12,
-                  }}
-                >
-                  <input
-                    type="number"
-                    min="0"
-                    value={capacity}
-                    onChange={(event) =>
-                      setCapacity(Number(event.target.value))
-                    }
-                    className="wray-calendar-input"
-                  />
-
-                  <button
-                    className="wray-calendar-primary"
-                    onClick={() =>
-                      updateSchedule({
-                        capacity,
-                      })
-                    }
-                  >
-                    APPLY
-                  </button>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    marginTop: 12,
-                  }}
-                ></div>
+        <div className="grid grid-cols-[minmax(660px,1fr)_390px] items-start gap-4">
+          <div className="min-w-0 space-y-3">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-black/20 bg-white px-4 py-2 text-xs">
+              <span className="font-black">TODAY　{today.slice(5)}　{todayWork?.used ?? 0}/{todayWork?.capacity ?? 0}pt</span>
+              <div className="flex flex-wrap justify-end gap-1">
+                {(todayWork?.allocations ?? []).map((a) =>
+                  <button key={a.id} onClick={() => { setSelectedDates([today]); setBookingId(a.booking.id); }} className="max-w-40 truncate rounded bg-[#dcd4f5] px-2 py-1 font-bold" title={a.booking.songTitle}>{a.booking.songTitle}</button>)}
               </div>
-
-              {selectedDates.length === 1 && (
-                <>
-                  <div className="wray-event-editor">
-                    <p className="wray-admin-label">MIX WORK</p>
-
-                    {(selectedDay?.allocations ?? []).length === 0 ? (
-                      <p>MIX作業なし</p>
-                    ) : (
-                      selectedDay?.allocations.map((allocation) => (
-                        <button
-                          key={allocation.id}
-                          type="button"
-                          className="wray-event-item"
-                          style={{
-                            width: "100%",
-                            textAlign: "left",
-                          }}
-                          onClick={() =>
-                            setSelectedBookingId(allocation.booking.id)
-                          }
-                        >
-                          <span>
-                            <strong>{allocation.booking.songTitle}</strong>
-
-                            <br />
-
-                            <small>
-                              {allocation.booking.name}
-                              さん / {getStatusLabel(allocation.booking.status)}
-                            </small>
-                          </span>
-
-                          <strong>
-                            {allocation.points}
-                            pt
-                          </strong>
-                        </button>
-                      ))
-                    )}
-                  </div>
-
-                  {selectedBooking && (
-                    <BookingEditor
-                      key={`${selectedBooking.id}-${selectedBooking.costPoint}-${selectedBooking.deliveryDate}-${selectedBooking.status}-${selectedBooking.quotedPrice}`}
-                      booking={selectedBooking}
-                      onReload={reloadSchedule}
-                      onClose={() => setSelectedBookingId(null)}
-                    />
-                  )}
-
-                  <div className="wray-event-editor">
-                    <p className="wray-admin-label">EVENT</p>
-
-                    <h3
-                      style={{
-                        fontSize: 20,
-                        fontWeight: 900,
-                      }}
-                    >
-                      個人予定
-                    </h3>
-
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 8,
-                        marginTop: 12,
-                      }}
-                    >
-                      <input
-                        value={eventTitle}
-                        onChange={(event) => setEventTitle(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            addEvent();
-                          }
-                        }}
-                        className="wray-calendar-input"
-                      />
-
-                      <button
-                        className="wray-calendar-primary"
-                        onClick={addEvent}
-                      >
-                        ADD
+            </div>
+            <section className="rounded-2xl border-2 border-black bg-white p-4 shadow-[3px_3px_0_#202020]">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <button onClick={() => navigate(-1)} className={button}>←</button>
+                  <h2 className="min-w-48 text-center text-lg font-black">{label}</h2>
+                  <button onClick={() => navigate(1)} className={button}>→</button>
+                  <button onClick={() => { setAnchor(today); setSelectedDates([today]); }} className={button + " bg-[#f7f1df]"}>TODAY</button>
+                </div>
+                <div className="flex rounded-lg border-2 border-black p-0.5">
+                  {(["month", "week"] as const).map((v) =>
+                    <button key={v} onClick={() => setView(v)} className={`rounded-md px-4 py-2 text-xs font-black ${view === v ? "bg-black text-white" : "bg-white"}`}>
+                      {v === "month" ? "月" : "週"}
+                    </button>)}
+                </div>
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {weekdays.map((w, i) => <div key={w} className={`pb-1 text-center text-xs font-black ${i === 0 ? "text-red-700" : i === 6 ? "text-blue-700" : ""}`}>{w}</div>)}
+                {Array.from({ length: offset }, (_, i) => <div key={`blank-${i}`} />)}
+                {visibleDates.map((date) => {
+                  const day = scheduleMap.get(date);
+                  const allocations = day?.allocations ?? [];
+                  const personal = eventMap.get(date) ?? [];
+                  const selected = selectedDates.includes(date);
+                  const isToday = date === today;
+                  return (
+                    <div key={date} className={`min-w-0 rounded-lg border p-1.5 ${view === "week" ? "min-h-80" : "min-h-30"} ${selected ? "border-black bg-[#eee9ff] ring-1 ring-black" : "border-black/15 bg-[#fffdf8]"} ${isToday ? "outline outline-2 outline-[#b897eb]" : ""}`}>
+                      <button onClick={(e) => selectDay(date, e.shiftKey)} className="flex w-full items-center justify-between gap-1 text-left" title="クリックで日付選択、Shift+クリックで範囲選択">
+                        <strong className="text-sm">{Number(date.slice(-2))}</strong>
+                        <span className="text-[10px] font-bold text-black/55">{day ? `${day.used}/${day.capacity}pt` : "OFF"}</span>
                       </button>
-                    </div>
-
-                    {(eventsMap.get(selectedDates[0]) ?? []).map((event) => (
-                      <div key={event.id} className="wray-event-item">
-                        {editingEventId === event.id ? (
-                          <>
-                            <input
-                              value={editingTitle}
-                              onChange={(e) => setEditingTitle(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  updateEvent();
-                                }
-                              }}
-                              className="wray-calendar-input"
-                            />
-
-                            <button
-                              className="wray-calendar-primary"
-                              onClick={updateEvent}
-                            >
-                              SAVE
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <span>{event.title}</span>
-
-                            <div
-                              style={{
-                                display: "flex",
-                                gap: 10,
-                              }}
-                            >
-                              <button
-                                onClick={() => {
-                                  setEditingEventId(event.id);
-
-                                  setEditingTitle(event.title);
-                                }}
-                              >
-                                EDIT
-                              </button>
-
-                              <button onClick={() => deleteEvent(event.id)}>
-                                ×
-                              </button>
-                            </div>
-                          </>
-                        )}
+                      {day && day.capacity > 0 && <div className="my-1 h-1 rounded-full bg-black/10"><div className="h-1 rounded-full bg-[#70b7a0]" style={{ width: `${Math.min(100, day.used / day.capacity * 100)}%` }} /></div>}
+                      <div className="space-y-1">
+                        {allocations.map((a) =>
+                          <button key={a.id} onClick={() => { setSelectedDates([date]); setBookingId(a.booking.id); }}
+                            title={`${a.booking.songTitle} / ${a.booking.name} / ${a.points}pt`}
+                            className={`block w-full truncate rounded px-1 py-1 text-left text-[10px] font-bold leading-tight hover:ring-1 hover:ring-black ${bookingId === a.booking.id ? "ring-2 ring-black" : ""} ${pillColor(a.booking.status)}`}>
+                            {a.booking.songTitle}<span className="ml-1 opacity-60">{a.points}pt</span>
+                          </button>)}
+                        {personal.map((e) => <button key={e.id} title={e.title} onClick={() => selectDay(date)} className="block w-full truncate rounded bg-[#eee] px-1 py-1 text-left text-[10px]">• {e.title}</button>)}
                       </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </>
-          )}
-        </section>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="mt-3 text-[11px] text-black/50">案件名をクリックして右側に詳細を表示。Shift＋日付クリックで複数日のキャパを一括変更できます。</p>
+            </section>
+            <section className="rounded-xl border border-black/20 bg-white p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div><h3 className="text-sm font-black">日付・予定管理</h3><p className="text-xs text-black/50">{selectedDates.length ? `${selectedDates.length}日選択 / ${selectedDates[0]}` : "日付を選択してください"}</p></div>
+                <div className="flex items-center gap-1">
+                  {[0, 10, 20, 30].map((n) => <button key={n} disabled={!selectedDates.length} onClick={() => updateCapacity(n)} className={button + " disabled:opacity-40"}>{n ? `${n}pt` : "OFF"}</button>)}
+                  <input type="number" min={0} className={input + " w-20"} value={capacity} onChange={(e) => setCapacity(Number(e.target.value))} />
+                  <button disabled={!selectedDates.length} onClick={() => updateCapacity(capacity)} className={button + " bg-[#bfe3d1] disabled:opacity-40"}>適用</button>
+                </div>
+              </div>
+              {selectedDates.length === 1 && <div className="mt-3 flex items-center gap-2">
+                <input className={input} placeholder="個人予定を追加" value={eventTitle} onChange={(e) => setEventTitle(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && eventTitle.trim()) postEvent("POST", { date: selectedDates[0], title: eventTitle.trim() }); }} />
+                <button className={button} disabled={!eventTitle.trim()} onClick={() => postEvent("POST", { date: selectedDates[0], title: eventTitle.trim() })}>追加</button>
+              </div>}
+              {selectedDates.length === 1 && (eventMap.get(selectedDates[0]) ?? []).map((event) => (
+                <div key={event.id} className="mt-2 flex items-center gap-2 rounded bg-[#f7f1df] p-2 text-xs">
+                  {editingEventId === event.id ? <>
+                    <input className={input} value={editingTitle} onChange={(e) => setEditingTitle(e.target.value)} />
+                    <button onClick={() => postEvent("PATCH", { id: event.id, title: editingTitle })} className={button}>保存</button>
+                    <button onClick={() => setEditingEventId(null)}>戻る</button>
+                  </> : <>
+                    <span className="flex-1">{event.title}</span>
+                    <button onClick={() => { setEditingEventId(event.id); setEditingTitle(event.title); }}>編集</button>
+                    <button onClick={() => { if (window.confirm("予定を削除しますか？")) postEvent("DELETE", { id: event.id }); }}>削除</button>
+                  </>}
+                </div>
+              ))}
+              {message && <p role="status" className="mt-2 text-xs font-bold">{message}</p>}
+            </section>
+          </div>
+          <aside className="sticky top-[76px] max-h-[calc(100vh-90px)] overflow-y-auto rounded-2xl border-2 border-black bg-white p-4 shadow-[3px_3px_0_#202020]">
+            {selectedBooking ? <BookingPanel key={selectedBooking.id} booking={selectedBooking} onRefresh={refresh} /> : (
+              <div>
+                <p className="text-xs font-black tracking-widest text-black/50">BOOKING DETAILS</p>
+                <h2 className="mt-2 text-xl font-black">依頼を選択</h2>
+                <p className="mt-2 text-sm text-black/55">カレンダー上の案件名をクリックすると、ステータス・素材・参考音源リンクをここで確認できます。</p>
+                {selectedDay && selectedDay.allocations.length > 0 && <div className="mt-4 space-y-2">
+                  {selectedDay.allocations.map((a) =>
+                    <button key={a.id} onClick={() => setBookingId(a.booking.id)} className="block w-full rounded-lg bg-[#f7f1df] p-3 text-left text-sm font-bold">{a.booking.songTitle} <span className="text-xs text-black/50">{a.points}pt</span></button>)}
+                </div>}
+              </div>
+            )}
+          </aside>
+        </div>
+        {loading && <p className="mt-3 text-xs">読み込み中…</p>}
       </div>
     </main>
   );
