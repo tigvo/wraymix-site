@@ -253,7 +253,8 @@ export default function ScheduleAdminPage() {
           </div>
           <Link href="/admin/bookings/new" className={button + " bg-[#bfe3d1] px-5 py-3"}>＋ 予約を追加</Link>
         </header>
-        <div className="grid grid-cols-[240px_minmax(520px,1fr)_340px] items-start gap-3">\n            <section className="sticky top-[76px] max-h-[calc(100vh-92px)] overflow-y-auto rounded-xl border-2 border-black bg-white p-3 shadow-[3px_3px_0_#202020]">
+        <div className="grid grid-cols-[240px_minmax(520px,1fr)_340px] items-start gap-3">
+            <section className="sticky top-[76px] max-h-[calc(100vh-92px)] overflow-y-auto rounded-xl border-2 border-black bg-white p-3 shadow-[3px_3px_0_#202020]">
               <div className="space-y-3">
                 <div><h3 className="text-sm font-black">日付・予定管理</h3><p className="text-xs text-black/50">{selectedDates.length ? `${selectedDates.length}日選択 / ${selectedDates[0]}` : "日付を選択してください"}</p></div>
                 <div className="grid grid-cols-4 gap-1">
