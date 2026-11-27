@@ -83,6 +83,19 @@ function BookingPanel({ booking, onRefresh }: { booking: Booking; onRefresh: () 
   }, [booking.id, booking.status, booking.adminNote]);
   const material = urls(booking.materialLinks);
   const folderName = bookingFolderName(booking);
+  const gigafileLinks = [...new Set((booking.materialLinks ?? "").split(/\\r?\\n/).map((s) => s.trim()).filter((s) => {
+    try {
+      const url = new URL(s);
+      return url.protocol === "https:" && (url.hostname === "gigafile.nu" || url.hostname.endsWith(".gigafile.nu"));
+    } catch { return false; }
+  }))];
+  function startGigafileDownload() {
+    if (!gigafileLinks.length) return;
+    const params = new URLSearchParams({ folder: folderName });
+    gigafileLinks.forEach((url) => params.append("link", url));
+    window.location.href = `wraymix://download?${params.toString()}`;
+  }
+
   async function copyFolderName() {
     try {
       await navigator.clipboard.writeText(folderName);
@@ -139,7 +152,16 @@ function BookingPanel({ booking, onRefresh }: { booking: Booking; onRefresh: () 
           <p className="mt-1 text-xs text-red-700">キャンセルすると作業枠から外れます。復活はできません。</p>}
       </section>
       <section>
-        <h3 className="text-sm font-black">素材・音源リンク</h3>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-black">素材・音源リンク</h3>
+          {gigafileLinks.length > 0 && (
+            <button type="button" onClick={startGigafileDownload}
+              title="Windows用WRAYMIXヘルパーのインストールが必要です"
+              className={button + " bg-[#bfe3d1]"}>
+              素材を取得 ↓
+            </button>
+          )}
+        </div>
         <div className="mt-1 space-y-1">
           {material.map((url, i) =>
             <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="block truncate rounded-lg border border-black/15 bg-[#edf7f2] px-3 py-2 text-xs font-bold" title={url}>音源・素材 {i + 1} ↗ <span className="font-normal text-black/50">{url}</span></a>)}
