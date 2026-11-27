@@ -59,9 +59,13 @@ function bookingFolderName(booking: Booking) {
   const created = new Date(booking.createdAt);
   const date = Number.isNaN(created.getTime())
     ? booking.deliveryDate.replace(/-/g, "")
-    : new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit",
-      }).format(created).replace(/-/g, "");
+    : (() => {
+        const parts = new Intl.DateTimeFormat("en-US", {
+          timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit",
+        }).formatToParts(created);
+        const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+        return `${part("year")}${part("month")}${part("day")}`;
+      })();
   return `${date}_${safeFolderPart(booking.songTitle)}_${safeFolderPart(booking.name)}`;
 }
 function statusName(value: string) {
