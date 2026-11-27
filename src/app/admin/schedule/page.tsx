@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Allocation = { id: number; date: string; points: number; booking: Booking };
 type Booking = {
-  id: number; name: string; contact: string; songTitle: string;
+  id: number; name: string; contact: string; songTitle: string; createdAt: string;
   serviceType: string; singerCount: number; chorusCount: number;
   status: string; planLabel: string | null; quotedPrice: number | null;
   deliveryDate: string; costPoint: number; isExpress: boolean;
@@ -52,6 +52,18 @@ function referenceUrls(booking: Booking) {
   const text = [booking.requestNote, booking.adminNote].filter(Boolean).join("\n");
   return [...new Set(text.split("\n").filter((line) => /参考|reference|ref\s*:/i.test(line)).flatMap((line) => urls(line)))];
 }
+function safeFolderPart(value: string) {
+  return value.replace(/[\\/:*?"<>|\\u0000-\\u001f]/g, " ").replace(/[. ]+$/g, "").trim().replace(/\\s+/g, " ") || "未設定";
+}
+function bookingFolderName(booking: Booking) {
+  const created = new Date(booking.createdAt);
+  const date = Number.isNaN(created.getTime())
+    ? booking.deliveryDate.replace(/-/g, "")
+    : new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit",
+      }).format(created).replace(/-/g, "");
+  return `${date}_${safeFolderPart(booking.songTitle)}_${safeFolderPart(booking.name)}`;
+}
 function statusName(value: string) {
   return statuses.find(([key]) => key === value)?.[1] ?? value;
 }
@@ -82,6 +94,15 @@ function BookingPanel({ booking, onRefresh }: { booking: Booking; onRefresh: () 
   }, [booking.id, booking.status, booking.adminNote]);
   const material = urls(booking.materialLinks);
   const references = referenceUrls(booking);
+  const folderName = bookingFolderName(booking);
+  async function copyFolderName() {
+    try {
+      await navigator.clipboard.writeText(folderName);
+      setFeedback("フォルダ名をコピーしました");
+    } catch {
+      setFeedback("コピーに失敗しました。表示されたテキストを選択してコピーしてください");
+    }
+  }
   async function save() {
     setSaving(true);
     setFeedback("");
@@ -119,6 +140,15 @@ function BookingPanel({ booking, onRefresh }: { booking: Booking; onRefresh: () 
         <div className="rounded-lg bg-[#f7f1df] p-2"><span className="block text-black/50">料金</span><b>{booking.quotedPrice === null ? "未確定" : `¥${booking.quotedPrice.toLocaleString()}`}</b></div>
         <div className="rounded-lg bg-[#f7f1df] p-2"><span className="block text-black/50">作業量</span><b>{booking.costPoint}pt</b></div>
       </div>
+      <section className="rounded-xl border border-black/20 bg-[#f7f1df] p-3">
+        <p className="text-xs font-black">プロジェクトフォルダ名</p>
+        <div className="mt-2 flex items-center gap-2">
+          <input className={input + " min-w-0 flex-1 font-mono text-xs"} readOnly aria-label="プロジェクトフォルダ名" value={folderName}
+            onFocus={(event) => event.target.select()} />
+          <button type="button" onClick={copyFolderName} className={button + " shrink-0 bg-[#dcd4f5]"}>コピー</button>
+        </div>
+        <p className="mt-1 text-[11px] text-black/50">依頼登録日（日本時間）_曲名_依頼者名</p>
+      </section>
       <section className="rounded-xl border-2 border-black bg-[#f5d48d] p-3">
         <label className="block text-xs font-black">ステータス変更</label>
         <select className={input + " mt-2"} value={status} disabled={booking.status === "cancelled"}
