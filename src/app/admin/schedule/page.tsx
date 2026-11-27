@@ -56,16 +56,7 @@ function safeFolderPart(value: string) {
   return value.replace(/[\\/:*?"<>|\u0000-\u001f]/g, " ").replace(/[. ]+$/g, "").trim().replace(/\s+/g, " ") || "未設定";
 }
 function bookingFolderName(booking: Booking) {
-  const created = new Date(booking.createdAt);
-  const date = Number.isNaN(created.getTime())
-    ? booking.deliveryDate.replace(/-/g, "")
-    : (() => {
-        const parts = new Intl.DateTimeFormat("en-US", {
-          timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit",
-        }).formatToParts(created);
-        const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
-        return `${part("year")}${part("month")}${part("day")}`;
-      })();
+  const date = booking.deliveryDate.replace(/-/g, "");
   return `${date}_${safeFolderPart(booking.songTitle)}_${safeFolderPart(booking.name)}`;
 }
 function statusName(value: string) {
@@ -151,7 +142,7 @@ function BookingPanel({ booking, onRefresh }: { booking: Booking; onRefresh: () 
             onFocus={(event) => event.target.select()} />
           <button type="button" onClick={copyFolderName} className={button + " shrink-0 bg-[#dcd4f5]"}>コピー</button>
         </div>
-        <p className="mt-1 text-[11px] text-black/50">依頼登録日（日本時間）_曲名_依頼者名</p>
+        <p className="mt-1 text-[11px] text-black/50">初稿予定日_曲名_依頼者名</p>
       </section>
       <section className="rounded-xl border-2 border-black bg-[#f5d48d] p-3">
         <label className="block text-xs font-black">ステータス変更</label>
